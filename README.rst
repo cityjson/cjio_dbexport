@@ -15,7 +15,10 @@ cjio_dbexport
 Export tool from PostGIS to CityJSON
 
 
-* Free software: MIT license
+License
+-------
+
+MIT license
 
 ..
     * Documentation: https://cjio-dbexport.readthedocs.io.
@@ -34,7 +37,7 @@ The project is pre-alpha, please install directly from GitHub with pip:
 Usage
 -----
 
-Call the `cjio_dbexport` tool from the command line and pass it the configuration file.
+Call the *cjio_dbexport* tool from the command line and pass it the configuration file.
 
 .. code-block::
 
@@ -56,17 +59,17 @@ Call the `cjio_dbexport` tool from the command line and pass it the configuratio
       export  Export into a CityJSON file.
 
 
-This tool uses a YAML-based configuration file to managing the database connections and declaring what to export. The block `database` specifies the database connection parameters. The block `features` specifies which table and fields to export from the database. The `table` is exported as **one record per CityObject**.
+This tool uses a YAML-based configuration file to managing the database connections and declaring what to export. The block ``database`` specifies the database connection parameters. The block ``features`` specifies which table and fields to export from the database. The ``table`` is exported as **one record per CityObject**.
 
 The mapping of the fields of the table to CityObjects is done as:
 
-    + `pk`: the primary key
-    + `geometry`: the geometry field
-    + `cityobject_id`: the field that is used as CityObject ID
++ ``pk``: the primary key
++ ``geometry``: the geometry field
++ ``cityobject_id``: the field that is used as CityObject ID
 
-By default all columns, excluding the three above, are added as Attributes to the CityObject. If you want to exclude certain fields, specify the filed names in a string array in `exclude`. In the example below, the fields `xml` and `_clipped` are excluded from the export.
+By default all columns, excluding the three above, are added as Attributes to the CityObject. If you want to exclude certain fields, specify the filed names in a string array in ``exclude``. In the example below, the fields ``xml`` and ``_clipped`` are excluded from the export.
 
-.. code-block::yaml
+.. code-block::
 
     database:
         dbname: db3dnl
