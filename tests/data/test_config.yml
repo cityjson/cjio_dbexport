@@ -1,0 +1,15 @@
+database:
+    dbname: db3dnl
+    host: localhost
+    port: 5432
+    user: some_user
+    pw:
+
+features:
+    schema: public
+    table: building
+    field:
+        pk: ogc_fid
+        geometry: wkb_geometry
+        cityobject_id: identificatie
+        to_exclude: ["xml", "_clipped"]
