@@ -26,10 +26,13 @@ SOFTWARE.
 """
 import sys
 import logging
+from pathlib import Path
 
 import click
+from cjio import cityjson
 
-from cjio_dbexport import recorder,configure
+from cjio_dbexport import recorder, configure, db
+from cjio_dbexport import db3dnl
 
 
 @click.group()
@@ -60,13 +63,28 @@ def main(ctx, verbose, quiet, configuration):
 @click.command('export')
 @click.option('--bbox', nargs=4, type=float,
               help='2D bbox: (minx miny maxx maxy).')
-@click.argument('output', type=click.File('w'))
+@click.argument('filename', type=str)
 @click.pass_context
-def export_cmd(ctx, bbox, output):
+def export_cmd(ctx, bbox, filename):
     """Export into a CityJSON file."""
+    path = Path(filename).resolve()
+    if not Path(path.parent).exists():
+        raise NotADirectoryError(f"Directory {path.parent} not exists")
+    conn = db.Db(**ctx.obj['cfg']['database'])
+    try:
+        cm = db3dnl.export(conn=conn,
+                           cfg=ctx.obj['cfg'],
+                           cotype='Building',
+                           bbox=bbox)
+        cityjson.save(cm, path=path, indent=None)
+    except Exception as e:
+        raise click.exceptions.ClickException(e)
+    finally:
+        conn.close()
 
 
 main.add_command(export_cmd)
+
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

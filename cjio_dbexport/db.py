@@ -114,12 +114,13 @@ class Db(object):
         """Create the PostGIS extension if not exists."""
         self.send_query("CREATE EXTENSION IF NOT EXISTS postgis;")
 
-    def get_fields(self, schema, table):
+    def get_fields(self, table):
         """List the fields in a table."""
-        query = sql.SQL("SELECT * FROM {s}.{t} LIMIT 0;").format(
-            s=sql.Identifier(schema), t=sql.Identifier(table))
-        cols = self.get_query(query)
-        yield [c[0] for c in cols]
+        query = sql.SQL("SELECT * FROM {table} LIMIT 0;").format(table=table)
+        with self.conn:
+            with self.conn.cursor() as cur:
+                cur.execute(query)
+                return [desc[0] for desc in cur.description]
 
     def close(self):
         """Close connection."""
@@ -190,7 +191,7 @@ class Schema:
             'unit_name': 'bladnr'}
         }
     >>> index = Schema(relations)
-    >>> index.schema.name
+    >>> index.schema
     'tile_index'
     >>> index.schema.identifier
     Identifier('tile_index')

@@ -76,7 +76,7 @@ By default all columns, excluding the three above, are added as Attributes to th
         host: localhost
         port: 5432
         user: some_user
-        pw:
+        password: some_password
 
     features:
         schema: public
@@ -94,8 +94,22 @@ You can provide a bounding box (minx miny maxx maxy) to limit the extent of the 
     $ cjio_dbexport tests/data/test_config.yml export --bbox 123.4 545.5 678.8 987.8 path/to/some/file.json
 
 
+Limitations
+------------
+
++ Only works for the *Building* CityObject type, hardcoded to LoD 1, no semantics, no appearances
+
++ The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
+
++ Either export the whole table of ``features.table``, or subset with a bounding box
+
++ Only tested with Python 3.6, PostgresSQL 11, PostGIS 2.5
+
++ CRS is hardcoded to 7415
+
+
 Features (planned)
---------
+------------------
 
 + [x] CLI
 
