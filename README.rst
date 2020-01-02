@@ -122,6 +122,39 @@ Features (planned)
 + [ ] concurrent export of the tiles
 
 
+3DNL
+-----
+
+Mapping of the 3DNL tables to CityJSON CityObjects:
+
++-----------------------------+-------------------+
+| 3dnl table                  | CityObject type   |
++=============================+===================+
+| begroeidterreindeel_vlak    | PlantCover        |
++-----------------------------+-------------------+
+| building                    | Building          |
++-----------------------------+-------------------+
+| kunstwerkdeel_vlak          | GenericCityObject |
++-----------------------------+-------------------+
+| onbegroeidterreindeel_vlak  | LandUse           |
++-----------------------------+-------------------+
+| ondersteunendwaterdeel_vlak | LandUse           |
++-----------------------------+-------------------+
+| ondersteunendwegdeel_vlak   | LandUse           |
++-----------------------------+-------------------+
+| overbruggingsdeel_vlak      | Bridge            |
++-----------------------------+-------------------+
+| overigbouwwerk              | LandUse           |
++-----------------------------+-------------------+
+| pand                        | LandUse           |
++-----------------------------+-------------------+
+| scheiding_vlak              | GenericCityObject |
++-----------------------------+-------------------+
+| waterdeel_vlak              | WaterBody         |
++-----------------------------+-------------------+
+| wegdeel_vlak                | Transportation    |
++-----------------------------+-------------------+
+
 Credits
 -------
 
