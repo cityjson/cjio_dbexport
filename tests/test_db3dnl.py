@@ -1,10 +1,9 @@
 # -*- coding: utf-8 -*-
-# Copyright:    (C)  by Balázs Dukai. All rights reserved.
-# Begin:        2019-12-16
-# Email:        b.dukai@tudelft.nl
+"""Testing the 3DNL exporter"""
 
-
-from cjio_dbexport import db3dnl
+import logging
+import pytest
+from cjio_dbexport import db3dnl, db
 
 
 def test_parse_boundary():
@@ -18,3 +17,28 @@ def test_parse_boundary():
         surface = db3dnl.parse_polygonz(polyz)
         msurface.append(list(surface))
     print(msurface)
+
+
+def test_build_query(db3dnl_db, cfg_parsed):
+    features = db.Schema(cfg_parsed['cityobject_type']['LandUse'][0])
+    query = db3dnl.build_query(conn=db3dnl_db, features=features,
+                               bbox=[192837.734, 465644.179, 193701.818,
+                                     466898.821])
+    query_str = db3dnl_db.print_query(query)
+    assert '"xml"' not in query_str
+
+
+class TestIntegration:
+    """Integration tests"""
+
+    def test_export(self, data_dir, cfg_parsed, db3dnl_db):
+        cm = db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed)
+        print(cm.get_info())
+
+    def test_export_bbox(self, data_dir, cfg_parsed, db3dnl_db, caplog):
+        caplog.set_level(logging.DEBUG)
+        cm = db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
+                           bbox=[192837.734, 465644.179, 193701.818,
+                                 466898.821])
+        print(cm.get_info())
+        # assert cm.validate()

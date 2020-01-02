@@ -199,6 +199,7 @@ class Schema:
     Identifier('tile_index', 'bag_index_test')
     """
 
+    # TODO: skip Lists
     def __new__(cls, arg):
         if isinstance(arg, abc.Mapping):
             return super().__new__(cls)

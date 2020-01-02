@@ -64,7 +64,7 @@ connections and declaring what to export. The block ``database`` specifies
 the database connection parameters. The block ``cityobject_type`` maps the
 database tables to CityObject types. Each key in ``cityobject_type`` is a
 `1st-level or 2nd-level CityObject <https://www.cityjson.org/specs/1.0
-.1/#city-object>_`, and it contains a sequence of mappings. Each of these
+.1/#city-object>`_, and it contains a sequence of mappings. Each of these
 mappings refer to a single table, thus you can collect CityObjects from
 several tables into a single CityObject type.
 The ``table`` is exported as **one record per CityObject**.
@@ -87,29 +87,29 @@ By default all columns, excluding the three above, are added as Attributes to th
       password: some_password
 
     cityobject_type:
-      waterbody:
+      WaterBody:
         - schema: public
           table: waterdeel_vlak
           field:
             pk: ogc_fid
             geometry: wkb_geometry
             cityobject_id: identificatie
-            to_exclude: ["xml", "_clipped"]
-      landuse:
+            exclude: ["xml", "_clipped"]
+      LandUse:
         - schema: public
           table: onbegroeidterreindeel_vlak
           field:
             pk: ogc_fid
             geometry: wkb_geometry
             cityobject_id: identificatie
-            to_exclude: ["xml"]
+            exclude: ["xml"]
         - schema: public
           table: ondersteunendwaterdeel_vlak
           field:
             pk: ogc_fid
             geometry: wkb_geometry
             cityobject_id: identificatie
-            to_exclude: ["xml"]
+            exclude: ["xml"]
 
 You can provide a bounding box (minx miny maxx maxy) to limit the extent of the export.
 
@@ -121,11 +121,11 @@ You can provide a bounding box (minx miny maxx maxy) to limit the extent of the 
 Limitations
 ------------
 
-+ Only works for the *Building* CityObject type, hardcoded to LoD 1, no semantics, no appearances
++ Hardcoded to LoD 1, no semantics, no appearances
 
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
 
-+ Either export the whole table of ``features.table``, or subset with a bounding box
++ Either export the whole database table, or subset with a bounding box
 
 + Only tested with Python 3.6, PostgresSQL 11, PostGIS 2.5
 
@@ -135,15 +135,7 @@ Limitations
 Features (planned)
 ------------------
 
-+ [x] CLI
-
-+ [ ] export a single irregular extent, provided by a polygon in geojson
-
-+ [ ] export multiple tiles, provided by tile IDs
-
-+ [ ] export all tiles
-
-+ [ ] concurrent export of the tiles
+See `the 3DNL project <https://github.com/cityjson/cjio_dbexport/projects/1>`_
 
 
 3DNL
@@ -176,7 +168,7 @@ Mapping of the 3DNL tables to CityJSON CityObjects:
 +-----------------------------+-------------------+
 | waterdeel_vlak              | WaterBody         |
 +-----------------------------+-------------------+
-| wegdeel_vlak                | Transportation    |
+| wegdeel_vlak                | Road              |
 +-----------------------------+-------------------+
 
 Credits

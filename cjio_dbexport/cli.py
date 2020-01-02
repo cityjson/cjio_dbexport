@@ -74,7 +74,6 @@ def export_cmd(ctx, bbox, filename):
     try:
         cm = db3dnl.export(conn=conn,
                            cfg=ctx.obj['cfg'],
-                           cotype='Building',
                            bbox=bbox)
         cityjson.save(cm, path=path, indent=None)
     except Exception as e:

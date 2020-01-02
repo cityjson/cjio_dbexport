@@ -6,101 +6,101 @@ database:
   password: some_password
 
 cityobject_type:
-  building:
+  Building:
     - schema: public
       table: building
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml", "_clipped"]
-  road:
+        exclude: ["xml", "_clipped"]
+  Road:
     - schema: public
       table: wegdeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
-  tinrelief:
+        exclude: ["xml"]
+  TINRelief:
     - schema: public
       table: tintable
       field:
         pk: fid
         geometry: geom
         cityobject_id: coid
-  waterbody:
+  WaterBody:
     - schema: public
       table: waterdeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
-  landuse:
+        exclude: ["xml"]
+  LandUse:
     - schema: public
       table: onbegroeidterreindeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
+        exclude: ["xml"]
     - schema: public
       table: ondersteunendwaterdeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
+        exclude: ["xml"]
     - schema: public
       table: ondersteunendwegdeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
+        exclude: ["xml"]
     - schema: public
       table: overigbouwwerk
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
+        exclude: ["xml"]
     - schema: public
       table: pand
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
-  plantcover:
+        exclude: ["xml"]
+  PlantCover:
     - schema: public
       table: begroeidterreindeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
-  genericcityobject:
+        exclude: ["xml"]
+  GenericCityObject:
     - schema: public
       table: kunstwerkdeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
+        exclude: ["xml"]
     - schema: public
       table: scheiding_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
-  bridge:
+        exclude: ["xml"]
+  Bridge:
     - schema: public
       table: overbruggingsdeel_vlak
       field:
         pk: ogc_fid
         geometry: wkb_geometry
         cityobject_id: identificatie
-        to_exclude: ["xml"]
+        exclude: ["xml"]
