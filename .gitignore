@@ -51,7 +51,9 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 # Test datasets
-data/balazs_config.yml
+tests/data/balazs_config.yml
+tests/data/test.json
+tests/data/test_all.json
 
 # Translations
 *.mo
@@ -110,3 +112,6 @@ ENV/
 # IDE settings
 .vscode/
 .idea
+
+# Other
+.directory

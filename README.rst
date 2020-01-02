@@ -59,7 +59,15 @@ Call the *cjio_dbexport* tool from the command line and pass it the configuratio
       export  Export into a CityJSON file.
 
 
-This tool uses a YAML-based configuration file to managing the database connections and declaring what to export. The block ``database`` specifies the database connection parameters. The block ``features`` specifies which table and fields to export from the database. The ``table`` is exported as **one record per CityObject**.
+This tool uses a YAML-based configuration file to managing the database
+connections and declaring what to export. The block ``database`` specifies
+the database connection parameters. The block ``cityobject_type`` maps the
+database tables to CityObject types. Each key in ``cityobject_type`` is a
+`1st-level or 2nd-level CityObject <https://www.cityjson.org/specs/1.0
+.1/#city-object>_`, and it contains a sequence of mappings. Each of these
+mappings refer to a single table, thus you can collect CityObjects from
+several tables into a single CityObject type.
+The ``table`` is exported as **one record per CityObject**.
 
 The mapping of the fields of the table to CityObjects is done as:
 
@@ -72,20 +80,36 @@ By default all columns, excluding the three above, are added as Attributes to th
 .. code-block::
 
     database:
-        dbname: db3dnl
-        host: localhost
-        port: 5432
-        user: some_user
-        password: some_password
+      dbname: db3dnl
+      host: localhost
+      port: 5432
+      user: some_user
+      password: some_password
 
-    features:
-        schema: public
-        table: building
-        field:
+    cityobject_type:
+      waterbody:
+        - schema: public
+          table: waterdeel_vlak
+          field:
             pk: ogc_fid
             geometry: wkb_geometry
             cityobject_id: identificatie
-            exclude: ["xml", "_clipped"]
+            to_exclude: ["xml", "_clipped"]
+      landuse:
+        - schema: public
+          table: onbegroeidterreindeel_vlak
+          field:
+            pk: ogc_fid
+            geometry: wkb_geometry
+            cityobject_id: identificatie
+            to_exclude: ["xml"]
+        - schema: public
+          table: ondersteunendwaterdeel_vlak
+          field:
+            pk: ogc_fid
+            geometry: wkb_geometry
+            cityobject_id: identificatie
+            to_exclude: ["xml"]
 
 You can provide a bounding box (minx miny maxx maxy) to limit the extent of the export.
 

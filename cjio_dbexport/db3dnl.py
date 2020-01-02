@@ -36,19 +36,17 @@ from cjio_dbexport import db
 
 log = logging.getLogger(__name__)
 
+def build_query(conn: db.Db, cfg: Mapping, features: db.Schema, bbox=None):
+    """Build an SQL query for extracting CityObjects from a single table.
 
-def export(conn, cfg: Mapping, cotype: str, bbox=None):
-    """Export a table to CityModel
+    ..todo: make EPSG a parameter
 
     :param conn:
     :param cfg:
-    :param cotype: CityObject type
+    :param features:
     :param bbox:
-    :return: A citymodel of :py:class:`cityjson.CityJSON`
+    :return:
     """
-    # Get the features
-    features = db.Schema(cfg['features'])
-
     # Exclude columns from the selection
     table_fields = conn.get_fields(features.schema + features.table)
     attr_select = sql.SQL(', ').join(sql.Identifier(col) for col in table_fields
@@ -65,6 +63,7 @@ def export(conn, cfg: Mapping, cotype: str, bbox=None):
     else:
         where_bbox = sql.SQL("")
 
+    # Main query
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
@@ -73,6 +72,7 @@ def export(conn, cfg: Mapping, cotype: str, bbox=None):
         'attr': attr_select,
         'where_bbox': where_bbox
     }
+
     query = sql.SQL("""
     WITH attrs AS (
         SELECT
@@ -110,6 +110,23 @@ def export(conn, cfg: Mapping, cotype: str, bbox=None):
     INNER JOIN attrs a ON
         b.pk = a.pk;
     """).format(**query_params)
+
+    return query
+
+
+def export(conn: db.Db, cfg: Mapping, cotype: str, bbox=None):
+    """Export a table to CityModel
+
+    :param conn:
+    :param cfg:
+    :param cotype: CityObject type
+    :param bbox:
+    :return: A citymodel of :py:class:`cityjson.CityJSON`
+    """
+    # Get the features
+    features = db.Schema(cfg['features'])
+
+    query = build_query(conn=conn, cfg=cfg, features=features, bbox=bbox)
     resultset = conn.get_dict(query)
 
     cm = cityjson.CityJSON()
@@ -128,7 +145,7 @@ def export(conn, cfg: Mapping, cotype: str, bbox=None):
         outer_shell = []
         for wkt_polyz in record['geom']:
             surface = parse_polygonz(wkt_polyz)
-            # OPTIMIZE: make use of the generator down the line
+            # OPTIMISE: make use of the generator down the line
             outer_shell.append(list(surface))
         solid.append(outer_shell)
         geom.boundaries = solid

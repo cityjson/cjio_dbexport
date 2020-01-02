@@ -29,12 +29,19 @@ def root_dir(t_dir):
 
 @pytest.fixture('session')
 def package_dir(root_dir):
-    yield root_dir / 'tin'
+    yield root_dir / 'cjio_dbexport'
+
+
+@pytest.fixture(scope='function')
+def cfg_open(data_dir):
+    config = data_dir / 'test_config.yml'
+    with open(config, 'r') as fo:
+        yield fo
 
 
 # -------------------------------------------------------------------- testing DB
 @pytest.fixture('session')
-def cfg(data_dir):
+def cfg_parsed(data_dir):
     config = data_dir / 'balazs_config.yml'
     with open(config, 'r') as fo:
         c = configure.parse_configuration(fo)
@@ -42,14 +49,14 @@ def cfg(data_dir):
 
 
 @pytest.fixture('session')
-def db3dnl_db(cfg):
+def db3dnl_db(cfg_parsed):
     # TODO: needs database setup
-    conn = db.Db(**cfg['database'])
+    conn = db.Db(**cfg_parsed['database'])
     yield conn
     conn.close()
 
 
 @pytest.fixture('session')
-def tin_schema(cfg):
-    yield db.Schema(cfg['features'])
+def tin_schema(cfg_parsed):
+    yield db.Schema(cfg_parsed['features'])
 

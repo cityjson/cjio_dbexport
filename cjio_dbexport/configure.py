@@ -31,6 +31,50 @@ import yaml
 log = logging.getLogger(__name__)
 
 
+def verify_cotypes(cfg: Mapping) -> bool:
+    """Verify that the configuration only contains the allowed CityObject types.
+
+    .. note:: CityObjectGroup is not supported
+    :raises: ValueError if invalid
+    """
+    # TODO: is it possible to extract the cityobject types from the cityjson schema?
+    first_level = [
+        'building',
+        'road', 'railway', 'transportsquare',
+        'tinrelief',
+        'waterbody',
+        'landuse',
+        'plantcover',
+        'solitaryvegetationobject',
+        'cityfurniture',
+        'genericcityobject',
+        'bridge',
+        'tunnel'
+    ]
+    second_level = [
+        'buildingpart', 'buildinginstallation',
+        'bridgepart', 'bridgeinstallation', 'bridgeconstructionelement',
+        'tunnelpart', 'tunnelinstallation'
+    ]
+    if 'cityobject_type' not in cfg:
+        raise ValueError("The configuration file must have a member 'cityobject_type'")
+    else:
+        for cotype in cfg['cityobject_type']:
+            _cotype = cotype.lower()
+            if _cotype == 'cityobjectgroup':
+                log.error("CityObjectGroup type is not supported")
+            elif _cotype in second_level:
+                f_lvl = _cotype.replace('installation','').replace('part','').replace('constructionelement', '')
+                if f_lvl not in cfg['cityobject_type']:
+                    raise ValueError(f"Cannot declare 2nd-level CityObject "
+                                     f"{_cotype} by itself. It must have a "
+                                     f"matching 1st-level CityObject that will "
+                                     f"be used as parent.")
+            elif _cotype not in first_level:
+                raise ValueError(f"{_cotype} is not a valid CityObject type")
+    return True
+
+
 def parse_configuration(config: TextIO) -> Mapping:
     """Parse the configuration file.
 
@@ -40,6 +84,11 @@ def parse_configuration(config: TextIO) -> Mapping:
         cfg_stream = yaml.load(config, Loader=yaml.FullLoader)
         log.debug(cfg_stream)
     except Exception as e:
+        log.exception(e)
+        raise
+    try:
+        verify_cotypes(cfg_stream)
+    except ValueError as e:
         log.exception(e)
         raise
     return cfg_stream
