@@ -5,7 +5,7 @@ import logging
 import pytest
 from cjio_dbexport import db3dnl, db
 
-
+@pytest.mark.db3dnl
 def test_parse_boundary():
     resultset = (1, [
         'POLYGON Z ((194427.785999119 466111.837000076 25.2199993133545,194437.779999554 466112.182000075 25.2199993133545,194427.371 466123.86 25.2199993133545,194427.785999119 466111.837000076 25.2199993133545))',
@@ -18,7 +18,7 @@ def test_parse_boundary():
         msurface.append(list(surface))
     print(msurface)
 
-
+@pytest.mark.db3dnl
 def test_build_query(db3dnl_db, cfg_parsed):
     features = db.Schema(cfg_parsed['cityobject_type']['LandUse'][0])
     query = db3dnl.build_query(conn=db3dnl_db, features=features,
@@ -27,7 +27,7 @@ def test_build_query(db3dnl_db, cfg_parsed):
     query_str = db3dnl_db.print_query(query)
     assert '"xml"' not in query_str
 
-
+@pytest.mark.db3dnl
 class TestIntegration:
     """Integration tests"""
 

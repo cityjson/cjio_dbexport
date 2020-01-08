@@ -9,6 +9,18 @@ import pytest
 
 from cjio_dbexport import configure, db
 
+#------------------------------------ add option for running the full test set
+def pytest_addoption(parser):
+    parser.addoption("--rundb3dnl", action="store_true",
+                     default=False, help="run tests against the 3DNL database")
+
+def pytest_collection_modifyitems(config, items):
+    if config.getoption("--rundb3dnl"):
+        return
+    skip_db3dnl = pytest.mark.skip(reason="need --rundb3dnl option to run")
+    for item in items:
+        if "db3dnl" in item.keywords:
+            item.add_marker(skip_db3dnl)
 
 #-------------------------------------------------------------------- directory
 @pytest.fixture('session')
@@ -40,6 +52,7 @@ def cfg_open(data_dir):
 
 
 # -------------------------------------------------------------------- testing DB
+
 @pytest.fixture('session')
 def cfg_parsed(data_dir):
     config = data_dir / 'balazs_config.yml'
