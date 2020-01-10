@@ -51,9 +51,8 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 # Test datasets
-tests/data/balazs_config.yml
-tests/data/test.json
-tests/data/test_all.json
+tests/data/db3dnl_config.yml
+tests/data/*.json
 
 # Translations
 *.mo

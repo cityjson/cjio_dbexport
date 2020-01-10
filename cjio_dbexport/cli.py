@@ -24,15 +24,14 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-import sys
 import logging
+import sys
 from pathlib import Path
 
 import click
 from cjio import cityjson
 
-from cjio_dbexport import recorder, configure, db
-from cjio_dbexport import db3dnl
+from cjio_dbexport import recorder, configure, db, db3dnl
 
 
 @click.group()
@@ -60,6 +59,7 @@ def main(ctx, verbose, quiet, configuration):
     ctx.obj['cfg'] = configure.parse_configuration(configuration)
     return 0
 
+
 @click.command('export')
 @click.option('--bbox', nargs=4, type=float,
               help='2D bbox: (minx miny maxx maxy).')
@@ -83,7 +83,6 @@ def export_cmd(ctx, bbox, filename):
 
 
 main.add_command(export_cmd)
-
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

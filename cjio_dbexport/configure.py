@@ -57,14 +57,17 @@ def verify_cotypes(cfg: Mapping) -> bool:
         'tunnelpart', 'tunnelinstallation'
     ]
     if 'cityobject_type' not in cfg:
-        raise ValueError("The configuration file must have a member 'cityobject_type'")
+        raise ValueError(
+            "The configuration file must have a member 'cityobject_type'")
     else:
         for cotype in cfg['cityobject_type']:
             _cotype = cotype.lower()
             if _cotype == 'cityobjectgroup':
                 log.error("CityObjectGroup type is not supported")
             elif _cotype in second_level:
-                f_lvl = _cotype.replace('installation','').replace('part','').replace('constructionelement', '')
+                f_lvl = _cotype.replace('installation', '').replace('part',
+                                                                    '').replace(
+                    'constructionelement', '')
                 if f_lvl not in cfg['cityobject_type']:
                     raise ValueError(f"Cannot declare 2nd-level CityObject "
                                      f"{_cotype} by itself. It must have a "

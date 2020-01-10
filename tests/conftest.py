@@ -55,7 +55,7 @@ def cfg_open(data_dir):
 
 @pytest.fixture('session')
 def cfg_parsed(data_dir):
-    config = data_dir / 'balazs_config.yml'
+    config = data_dir / 'db3dnl_config.yml'
     with open(config, 'r') as fo:
         c = configure.parse_configuration(fo)
         yield c

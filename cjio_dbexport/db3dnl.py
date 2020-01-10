@@ -25,8 +25,8 @@ SOFTWARE.
 """
 import logging
 import re
-from typing import Mapping
 from datetime import datetime
+from typing import Mapping
 
 from cjio import cityjson
 from cjio.models import CityObject, Geometry
@@ -34,8 +34,8 @@ from psycopg2 import sql
 
 from cjio_dbexport import db
 
-
 log = logging.getLogger(__name__)
+
 
 def build_query(conn: db.Db, features: db.Schema, bbox=None):
     """Build an SQL query for extracting CityObjects from a single table.
@@ -55,16 +55,17 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
     else:
         exclude = []
     attr_select = sql.SQL(', ').join(sql.Identifier(col) for col in table_fields
-                                      if col != features.field.pk.string and
-                                      col != features.field.geometry.string and
-                                      col != features.field.cityobject_id.string and
-                                      col not in exclude)
+                                     if col != features.field.pk.string and
+                                     col != features.field.geometry.string and
+                                     col != features.field.cityobject_id.string and
+                                     col not in exclude)
     # BBOX clause
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
         epsg = 7415
-        where_bbox = sql.SQL(f"WHERE ST_Intersects({features.field.geometry.string},"
-                             f"ST_MakeEnvelope({','.join(map(str, bbox))}, {str(epsg)}))")
+        where_bbox = sql.SQL(
+            f"WHERE ST_Intersects({features.field.geometry.string},"
+            f"ST_MakeEnvelope({','.join(map(str, bbox))}, {str(epsg)}))")
     else:
         where_bbox = sql.SQL("")
 
@@ -84,7 +85,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
             {pk} pk,
             {attr}
         FROM
-            {table}
+            {TABLE}
     ),
     polygons AS (
         SELECT
@@ -92,7 +93,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
             (ST_Dump({geometry})).geom,
             {coid} coid
         FROM
-            {table}
+            {TABLE}
         {where_bbox}
     ),
     boundary AS (
@@ -206,6 +207,6 @@ def parse_polygonz(wkt_polygonz):
         for ring in rings:
             pts = [tuple(map(float, pt.split()))
                    for pt in ring.split(',')]
-            yield pts[1:] # WKT repeats the first vertex
+            yield pts[1:]  # WKT repeats the first vertex
     else:
         log.error("Not a POLYGON Z")

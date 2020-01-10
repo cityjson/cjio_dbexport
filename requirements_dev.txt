@@ -1,4 +1,4 @@
-pip==19.2.3
+pip>=19.3
 bump2version==0.5.11
 wheel==0.33.6
 watchdog==0.9.0
@@ -10,4 +10,5 @@ twine==1.14.0
 Click==7.0
 pytest==4.6.5
 pytest-runner==5.1
-pyinstaller==3.5
+# Need pyinstaller 4.0
+https://github.com/pyinstaller/pyinstaller/archive/develop.tar.gz
