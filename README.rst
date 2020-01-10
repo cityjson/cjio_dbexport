@@ -26,24 +26,35 @@ MIT license
 Install
 -------
 
-Requires Python 3.5+
+The software does not have an installer but only an executable which you can
+run directly in the command line. Head over to the `latest release
+<https://github.com/cityjson/cjio_dbexport/releases/latest>`_ and download
+the executable for your platform.
+
+Extract the archive (in Windows you'll need 7zip) and run the executable from
+the command line.
+
+Install for development
+-----------------------
+
+Requires Python 3.6+
 
 The project is pre-alpha, please install directly from GitHub with pip:
 
 .. code-block::
 
-    $ pip install -U --force-reinstall git+https://github.com/balazsdukai/cjio_dbexport@master
+    $ pip install -U --force-reinstall git+https://github.com/cityjson/cjio_dbexport@master
 
 Usage
 -----
 
-Call the *cjio_dbexport* tool from the command line and pass it the configuration file.
+Call the *cjdb* tool from the command line and pass it the configuration file.
 
 .. code-block::
 
-    $ cjio_dbexport tests/data/test_config.yml --help
+    $ cjdb tests/data/test_config.yml --help
 
-    Usage: cjio_dbexport [OPTIONS] CONFIGURATION COMMAND [ARGS]...
+    Usage: cjdb [OPTIONS] CONFIGURATION COMMAND [ARGS]...
 
       Export tool from PostGIS to CityJSON.
 
@@ -115,7 +126,7 @@ You can provide a bounding box (minx miny maxx maxy) to limit the extent of the 
 
 .. code-block::
 
-    $ cjio_dbexport tests/data/test_config.yml export --bbox 123.4 545.5 678.8 987.8 path/to/some/file.json
+    $ cjdb tests/data/test_config.yml export --bbox 123.4 545.5 678.8 987.8 path/to/some/file.json
 
 
 Limitations
@@ -127,7 +138,7 @@ Limitations
 
 + Either export the whole database table, or subset with a bounding box
 
-+ Only tested with Python 3.6, PostgresSQL 11, PostGIS 2.5
++ Only tested with PostgresSQL 11, PostGIS 2.5
 
 + CRS is hardcoded to 7415
 

@@ -4,7 +4,7 @@ python:
 cache:
   - pip
   - directories:
-      - $HOME/.pyenv
+      - "$HOME/.pyenv"
 # Would be great to cache Postgres here but dir names with spaces are split into two and escaping doesn't work
 #      - "/c/Program\ Files/PostgreSQL"
 
@@ -58,7 +58,6 @@ jobs:
 
 install:
   - pip install -U tox-travis
-
 script:
   - tox
 
@@ -77,22 +76,25 @@ before_deploy:
         rm $DISTPATH/$EXE_NAME.exe
         ;;
       linux)
-        zip -r $EXE_PKG.zip $DISTPATH/$EXE_NAME
+        zip -rj $EXE_PKG.zip $DISTPATH/$EXE_NAME
         rm $DISTPATH/$EXE_NAME
         ;;
     esac
 
 deploy:
-  - provider: releases
-    cleanup: false
-    token:
-      secure: nt4IH6uOIpATCz8BK15FCLMAXswJnnfJmRb6umP8NSB3J4zCIZPZ0p5k8jj9zXlcMCBpTDEONIhoN72DhRUXZ4jGruNfFAu+nHAsezKEjhm8i0lpqMkHrNjYmaTn5Wk+uXXKe5D1Dw9WwBgKvjkY/ADtS53fTusCS6LnmPLUkjPIKIJbRhVyShGexmc4V9J96atn93aETX2C+oShMxDnMHLABRrXaOuxJmXyjSfl3U9L+uf6mRCTUN9f0LS3XTUIgbDWTVa3nItFg+fQ1GYgNTFbCi7GhqKLEqm1VZ9ZgFv+yMFExWaDxtYXqPIr5AwwNl8PHQc+FmsZu0nzaYvmiZTddBqYivMu47wURGV07sY/jXcyi2hf9zswWxWS3oZmDYXK5h385V0v+0ZKVYj2Ux8w9s8XBQqE7nMbpFu/9PtVcm5A9vPw61ceuzTk9WMs7E91QUvvPujXg2Vl7FuvCoMtZlxODAgXiQ+Vr37TYVfxxOrXadzLRFNvkFVjHHr/uog8yiGszEZXi6mJER5cJpOyVqqaOm4r9LKSH556YpUckoqeODD2DjVAspBAzsklJWCHQAG758H+DnYaYLDzCKLFoCahY67m/e1VIGFhxdI1W3s7dMCrJDjID2H5MgqlArshyvXp50bKnDyKuU0FQ6A9nO3RFVi5xGAJBN8l5Ro=
-    file_glob: true
-    file: cjdb_*.zip
-    on:
-      repo: balazsdukai/cjio_dbexport
-      tags: true
-    edge: true
+  provider: releases
+  cleanup: false
+  token:
+    secure: opgpAT2e9UvvFc629R5kdZZEeateOc0NaZgg/bcanVeYOAxxL1jUpkl6izFCUrweA4a/Ot+b1LaBchrQ5vW7DdhzSV/lGqEhPbrWLaJxgpoD23+MwIrT90eLSimz1xcyGe+5f6xXfJqE4vMIYRjQFJMM77R1ACPfX4RBwGJzdUdKz1ZKZ5g/HPJd6bPYIrbczbE4VKGw9i2k2hG3SWrjzs/88llUYM9hgNVloZreyFM1xS3k/A6OettPFmzpYm6ziFAm+v7ua7BfDj9X5pZSXmnGbFPMwW9eFBAENADg4GMZVkdqK2152Z6/+zlTWGwlhauzD/SsTBq/504vh1fsbKeb2fendabYEbXE8UQjywwg1q7rje5YK0RiBgKJ2Mpt0JKsk1zpJ5O4ajsgO2YdVnRhEb0Zu8An5pKvuvJrHX4vtf15jWCWRHy9uZaUx+C819KqXj8sd08jkNdAUtcw1eMTfldVeyiFbAx/I03SK8LQ9PUbvc2vlO/st8m0Qq81vg3Hgl8uGp7BUfWGUUXt1VSNC8ieijnBX60BC4nGtRZ+lCjazPjIuDv3mfRjG5g+wWwPdCznV3QPaiG17y/yJNdYbEVNd3SjkRWQipGgXsplF7UHBrRJLLR0JA/qWxayNpdTbINcTl/SeypqdEXylYNDsvy8Qts3k5vIUuSMBIg=
+  file_glob: true
+  # Travis cannot expand paths from env. variables under Windows here
+  # (linux yes). So eg. $TRAVIS_BUILD_DIR/cjdb_*.zip leads to 'file not
+  # found' on Windows
+  file: cjdb_*.zip
+  on:
+    repo: cityjson/cjio_dbexport
+    tags: true
+  edge: true
 
 notifications:
   email: false
