@@ -77,7 +77,7 @@ before_deploy:
         rm $DISTPATH/$EXE_NAME.exe
         ;;
       linux)
-        zip -r $EXE_PKG.zip $DISTPATH/$EXE_NAME
+        zip -rj $EXE_PKG.zip $DISTPATH/$EXE_NAME
         rm $DISTPATH/$EXE_NAME
         ;;
     esac

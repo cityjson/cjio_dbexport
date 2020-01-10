@@ -38,7 +38,7 @@ setup(
     description="Export tool from PostGIS to CityJSON",
     entry_points={
         'console_scripts': [
-            'cjio_dbexport=cjio_dbexport.cli:main',
+            'cjdb=cjio_dbexport.cli:main',
         ],
     },
     install_requires=requirements,
