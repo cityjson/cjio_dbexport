@@ -82,7 +82,38 @@ def export_cmd(ctx, bbox, filename):
         conn.close()
 
 
+@click.command('index')
+@click.argument('extent', type=click.File('r'))
+@click.argument('tilesize', type=float, nargs=2)
+@click.pass_context
+def index_cmd(ctx, extent, tilesize):
+    """Create a tile index for the specified extent.
+
+    Run this command to create rectangular tiles for EXTENT and store the
+    resulting tile index in the database. The size of the tiles is set by
+    TILESIZE X-width Y-width.
+
+    EXTENT is a GeoJSON file that contains a single Polygon. For example if you
+    want to create a tile index for the Netherlands, EXTENT would be the
+    polygon boundary of the Netherlands.
+
+    For example the command below will,
+
+    (1) create rectangular polygons (tiles) of 1000m by 1000m for the extent
+        of the polygon that is 'netherlands.json',
+
+    (2) sort the tiles in Morton-order and create unique IDs for them
+        accordingly,
+
+    (3) upload the tile index into the relation that is declared in 'config.yml'
+    under the 'tile_index' node.
+
+        $ cjdb config.yml index netherlands.json 1000 1000
+    """
+
+
 main.add_command(export_cmd)
+main.add_command(index_cmd)
 
 if __name__ == "__main__":
     sys.exit(main())  # pragma: no cover

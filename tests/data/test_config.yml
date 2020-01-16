@@ -1,9 +1,17 @@
 database:
-  dbname: db3dnl
+  dbname: cjdb_test
   host: localhost
   port: 5432
-  user: some_user
-  password: some_password
+  user: cjdb_tester
+  password: cjdb_test1234
+
+tile_index:
+  schema: tile_index
+  table: tile_index_1
+  srid: 7415
+  field:
+    pk: id
+    geometry: geom
 
 cityobject_type:
   Building:
