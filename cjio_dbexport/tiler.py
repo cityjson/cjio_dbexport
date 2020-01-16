@@ -94,10 +94,6 @@ def insert_ewkt(conn, temp_table: sql.Identifier, ewkt: str) -> bool:
     return True
 
 def create_tiles():
-    """See https://gis.stackexchange.com/a/246646
-
-    Do https://github.com/qgis/QGIS/blob/a3ef3899c1d68b571f1e832d64b9423e5115c60b/src/analysis/processing/qgsalgorithmgrid.cpp
-    f.setAttributes( QgsAttributes() << id << x1 << y1 << x2 << y2 );
-    are id << left << top << right << bottom
+    """
     """
 

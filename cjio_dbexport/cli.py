@@ -31,7 +31,7 @@ from pathlib import Path
 import click
 from cjio import cityjson
 
-from cjio_dbexport import recorder, configure, db, db3dnl
+from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils
 
 
 @click.group()
@@ -91,7 +91,7 @@ def index_cmd(ctx, extent, tilesize):
 
     Run this command to create rectangular tiles for EXTENT and store the
     resulting tile index in the database. The size of the tiles is set by
-    TILESIZE X-width Y-width.
+    TILESIZE width height.
 
     EXTENT is a GeoJSON file that contains a single Polygon. For example if you
     want to create a tile index for the Netherlands, EXTENT would be the
@@ -110,6 +110,15 @@ def index_cmd(ctx, extent, tilesize):
 
         $ cjdb config.yml index netherlands.json 1000 1000
     """
+    polygon = tiler.read_geojson_polygon(extent)
+    bbox = utils.bbox(polygon)
+    click.echo(f"Tilesize is set to width={tilesize[0]}, height={tilesize[1]}")
+    grid = utils.create_rectangle_grid_morton(bbox=bbox,
+                                       hspacing=tilesize[0],
+                                       vspacing=tilesize[1])
+    # Create the IDs for the tiles
+    # Upload to the database
+
 
 
 main.add_command(export_cmd)
