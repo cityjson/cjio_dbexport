@@ -110,12 +110,13 @@ def index_cmd(ctx, extent, tilesize):
 
         $ cjdb config.yml index netherlands.json 1000 1000
     """
+    log = ctx.obj['log']
     polygon = tiler.read_geojson_polygon(extent)
     bbox = utils.bbox(polygon)
+    log.debug(f"BBOX {bbox}")
     click.echo(f"Tilesize is set to width={tilesize[0]}, height={tilesize[1]}")
-    grid = utils.create_rectangle_grid_morton(bbox=bbox,
-                                       hspacing=tilesize[0],
-                                       vspacing=tilesize[1])
+    grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=tilesize[0],
+                                              vspacing=tilesize[1])
     # Create the IDs for the tiles
     # Upload to the database
 

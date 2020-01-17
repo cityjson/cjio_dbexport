@@ -9,8 +9,8 @@ log = logging.getLogger(__name__)
 
 class TestBBOX:
     @pytest.mark.parametrize('polygon, bbox', [
-        [((1.0, 4.0), (3.0,1.0), (6.0, 2.0), (6.0, 6.0), (2.0, 7.0)), (1.0, 1.0, 6.0, 7.0)],
-        [((1.0, 4.0), (3.0,1.0), (6.0, 2.0), (6.0, 6.0), (2.0, 7.0), (1.0, 4.0)), (1.0, 1.0, 6.0, 7.0)]
+        [[[(1.0, 4.0), (3.0,1.0), (6.0, 2.0), (6.0, 6.0), (2.0, 7.0)]], (1.0, 1.0, 6.0, 7.0)],
+        [[[(1.0, 4.0), (3.0,1.0), (6.0, 2.0), (6.0, 6.0), (2.0, 7.0), (1.0, 4.0)]], (1.0, 1.0, 6.0, 7.0)]
     ])
     def test_bbox(self, polygon, bbox):
         assert utils.bbox(polygon) == bbox
@@ -25,7 +25,7 @@ class TestGrid:
     def test_create_rectangle_grid_morton(self):
         bbox = (1032.05, 286175.81, 304847.26, 624077.50)
         grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=10000,
-                                           vspacing=10000)
+                                                  vspacing=10000)
         assert len(grid) == 1054
 
 class TestSorting:

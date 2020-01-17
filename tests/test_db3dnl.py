@@ -3,7 +3,9 @@
 
 import logging
 import pytest
-from cjio_dbexport import db3dnl, db
+from cjio_dbexport import db3dnl, db, tiler,utils
+
+log = logging.getLogger(__name__)
 
 @pytest.mark.db3dnl
 def test_parse_boundary():
@@ -42,3 +44,11 @@ class TestIntegration:
                                  466898.821])
         print(cm.get_info())
         # assert cm.validate()
+
+    def test_index(self, data_dir, nl_poly):
+        tilesize = (10000, 10000)
+        polygon = tiler.read_geojson_polygon(nl_poly)
+        bbox = utils.bbox(polygon)
+        grid = utils.create_rectangle_grid_morton(bbox=bbox,
+                                                  hspacing=tilesize[0],
+                                                  vspacing=tilesize[1])

@@ -75,6 +75,17 @@ def db3dnl_db(cfg_parsed):
     yield conn
     conn.close()
 
+@pytest.fixture(scope='function')
+def nl_poly(data_dir):
+    with open(data_dir / 'nl_single.geojson', 'r') as fo:
+        yield fo
+
+@pytest.fixture(scope='function')
+def nl_multi(data_dir):
+    with open(data_dir / 'nl_multi.geojson', 'r') as fo:
+        yield fo
+
+
 @pytest.fixture('session')
 def cfg_cjdb(data_dir):
     config = data_dir / 'test_config.yml'

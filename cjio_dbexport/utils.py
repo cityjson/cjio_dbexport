@@ -27,7 +27,8 @@ import math
 from statistics import mean
 from typing import Iterable, Tuple, Mapping
 
-def create_rectangle_grid(bbox: Iterable[float], hspacing: float, vspacing: float) -> Iterable:
+def create_rectangle_grid(bbox: Iterable[float], hspacing: float,
+                          vspacing: float) -> Iterable:
     """
 
     :param bbox: (xmin, ymin, xmax, ymax)
@@ -56,7 +57,8 @@ def create_rectangle_grid(bbox: Iterable[float], hspacing: float, vspacing: floa
 
     return multipolygon
 
-def create_rectangle_grid_morton(bbox: Iterable[float], hspacing: float, vspacing: float) -> Mapping:
+def create_rectangle_grid_morton(bbox: Iterable[float], hspacing: float,
+                                 vspacing: float) -> Mapping:
     """
 
     :param bbox: (xmin, ymin, xmax, ymax)
@@ -90,23 +92,24 @@ def create_rectangle_grid_morton(bbox: Iterable[float], hspacing: float, vspacin
 
     return dict((k, grid[k]) for k in sorted(grid))
 
-def bbox(polygon) -> Tuple[float, float, float, float]:
+def bbox(polygon: Iterable) -> Tuple[float, float, float, float]:
     """Compute the Bounding Box of a polygon.
 
-    :param polygon: List of coordinate pairs (x,y)
+    :param polygon: A Simple Feature Polygon, defined as [[[x1, y1], ...], ...]
     """
     x,y = 0,1
-    vtx = polygon[0]
+    vtx = polygon[0][0]
     minx, miny, maxx, maxy = vtx[x], vtx[y], vtx[x], vtx[y]
-    for vtx in polygon[1:]:
-        if vtx[x] < minx:
-            minx = vtx[x]
-        elif vtx[y] < miny:
-            miny = vtx[y]
-        elif vtx[x] > maxx:
-            maxx = vtx[x]
-        elif vtx[y] > maxy:
-            maxy = vtx[y]
+    for ring in polygon:
+        for vtx in ring:
+            if vtx[x] < minx:
+                minx = vtx[x]
+            elif vtx[y] < miny:
+                miny = vtx[y]
+            elif vtx[x] > maxx:
+                maxx = vtx[x]
+            elif vtx[y] > maxy:
+                maxy = vtx[y]
     return minx, miny, maxx, maxy
 
 
