@@ -1,6 +1,8 @@
 # -*- coding: utf-8 -*-
 """Testing the tiler module."""
 from pathlib import Path
+
+import cjio_dbexport.utils
 from cjio_dbexport import tiler
 import logging
 from psycopg2 import sql
@@ -10,20 +12,6 @@ log = logging.getLogger(__name__)
 
 @pytest.mark.cjdb
 class TestTiler:
-    def test_read_geojson_polygon(self, nl_poly):
-        polygon = tiler.read_geojson_polygon(nl_poly)
-        assert len(polygon) > 0
-
-    def test_read_geojson_polygon_multi(self, nl_multi):
-        with pytest.raises(ValueError):
-            polygon = tiler.read_geojson_polygon(nl_multi)
-
-    def test_to_ewkt(self):
-        polygon = [[(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]
-        expect = 'SRID=7415;POLYGON((0.0 0.0,1.0 1.0,1.0 0.0,0.0 0.0))'
-        ewkt = tiler.to_ewkt(polygon, srid=7415)
-        assert ewkt == expect
-
     def test_create_temp_table(self, cjdb_db):
         cfg = {'tile_index': {'srid': 7415}}
         assert tiler.create_temp_table(conn=cjdb_db, cfg=cfg)

@@ -3,6 +3,8 @@
 
 import logging
 import pytest
+
+import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, tiler,utils
 
 log = logging.getLogger(__name__)
@@ -47,7 +49,7 @@ class TestIntegration:
 
     def test_index(self, data_dir, nl_poly):
         tilesize = (10000, 10000)
-        polygon = tiler.read_geojson_polygon(nl_poly)
+        polygon = cjio_dbexport.utils.read_geojson_polygon(nl_poly)
         bbox = utils.bbox(polygon)
         grid = utils.create_rectangle_grid_morton(bbox=bbox,
                                                   hspacing=tilesize[0],

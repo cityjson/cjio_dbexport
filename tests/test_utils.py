@@ -7,6 +7,20 @@ from cjio_dbexport import utils
 
 log = logging.getLogger(__name__)
 
+class TestGeom:
+    def test_read_geojson_polygon(self, nl_poly):
+        polygon = utils.read_geojson_polygon(nl_poly)
+        assert len(polygon) > 0
+
+    def test_read_geojson_polygon_multi(self, nl_multi):
+        with pytest.raises(ValueError):
+            polygon = utils.read_geojson_polygon(nl_multi)
+
+    def test_to_ewkt(self):
+        polygon = [[(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]
+        expect = 'SRID=7415;POLYGON((0.0 0.0,1.0 1.0,1.0 0.0,0.0 0.0))'
+        ewkt = utils.to_ewkt(polygon, srid=7415)
+        assert ewkt == expect
 
 class TestBBOX:
     @pytest.mark.parametrize('polygon, bbox', [

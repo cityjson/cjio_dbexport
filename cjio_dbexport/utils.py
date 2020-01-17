@@ -23,9 +23,10 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE 
 SOFTWARE.
 """
+import json
 import math
 from statistics import mean
-from typing import Iterable, Tuple, Mapping
+from typing import Iterable, Tuple, Mapping, TextIO
 import logging
 
 log = logging.getLogger(__name__)
@@ -248,3 +249,28 @@ def rev_morton_code(morton_key: int) -> Tuple[float, float]:
     """Get the coordinates from a Morton-key"""
     x,y = deinterleave(morton_key)
     return float(x)/100.0, float(y)/100.0
+
+
+def read_geojson_polygon(fo: TextIO) -> Iterable:
+    """Reads a single polygon from a GeoJSON file.
+    :returns: A Simple Feature representation of the polygon
+    """
+    polygon = list()
+    # Only Polygon is allowed (no Multi-)
+    gjson = json.load(fo)
+    if gjson['features'][0]['geometry']['type'] != 'Polygon':
+        raise ValueError(f"The first Feature in GeoJSON is "
+                         f"{gjson['features'][0]['geometry']['type']}. Only "
+                         f"Polygon is allowed.")
+    else:
+        polygon = gjson['features'][0]['geometry']['coordinates']
+    return polygon
+
+
+def to_ewkt(polygon, srid) -> str:
+    """Creates a WKT representation of a Simple Feature polygon.
+    :returns: The WKT string of ``polygon``
+    """
+    ring = [" ".join(map(str, i)) for i in polygon[0]]
+    ewkt = f'SRID={srid};POLYGON(({",".join(ring)}))'
+    return ewkt

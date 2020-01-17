@@ -27,10 +27,14 @@ SOFTWARE.
 import logging
 import sys
 from pathlib import Path
+from io import StringIO
 
+from psycopg2 import Error as pgError
+from psycopg2.extensions import quote_ident
 import click
 from cjio import cityjson
 
+import cjio_dbexport.utils
 from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils
 
 
@@ -97,6 +101,8 @@ def index_cmd(ctx, extent, tilesize):
     want to create a tile index for the Netherlands, EXTENT would be the
     polygon boundary of the Netherlands.
 
+    Note that the CRS must be consistent in EXTENT and
+
     For example the command below will,
 
     (1) create rectangular polygons (tiles) of 1000m by 1000m for the extent
@@ -111,7 +117,7 @@ def index_cmd(ctx, extent, tilesize):
         $ cjdb config.yml index netherlands.json 1000 1000
     """
     log = ctx.obj['log']
-    polygon = tiler.read_geojson_polygon(extent)
+    polygon = cjio_dbexport.utils.read_geojson_polygon(extent)
     bbox = utils.bbox(polygon)
     log.debug(f"BBOX {bbox}")
     click.echo(f"Tilesize is set to width={tilesize[0]}, height={tilesize[1]}"
@@ -121,7 +127,31 @@ def index_cmd(ctx, extent, tilesize):
     click.echo(f"Created {len(grid)} tiles")
     # Create the IDs for the tiles
     quadtree_idx = utils.index_quadtree(grid)
+    # Check if schema and table exists
     # Upload to the database
+    conn = db.Db(**ctx.obj['cfg']['database'])
+    tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
+    table = (tile_index.schema + tile_index.table).as_string(conn.conn)
+    values = StringIO()
+    for idx, code in quadtree_idx.items():
+        ewkt = utils.to_ewkt(polygon=grid[code],
+                             srid=ctx.obj['cfg']['tile_index']['srid'])
+        values.write(f'{idx}\t{ewkt}\n')
+    try:
+        with conn.conn:
+            with conn.conn.cursor() as cur:
+
+                cur.copy_from(values, table,
+                              columns=(tile_index.field.pk.string,
+                                       tile_index.field.geometry.string),
+                              sep='\t')
+        click.echo(f"Inserted {len(grid)} tile polygons into {table}")
+    except pgError as e:
+        raise click.ClickException(e)
+    finally:
+        conn.close()
+        values.close()
+
 
 
 
