@@ -1,8 +1,5 @@
 # -*- coding: utf-8 -*-
 """Testing the tiler module."""
-from pathlib import Path
-
-import cjio_dbexport.utils
 from cjio_dbexport import tiler
 import logging
 from psycopg2 import sql

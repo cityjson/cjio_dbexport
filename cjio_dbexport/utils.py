@@ -182,6 +182,41 @@ def bbox(polygon: Iterable) -> Tuple[float, float, float, float]:
     return minx, miny, maxx, maxy
 
 
+def distance(a,b) -> float:
+    """Distance between point a and point b"""
+    x,y = 0,1
+    return math.sqrt((a[x] - b[x])**2 + (a[y] - b[y])**2)
+
+
+def is_between(a,c,b) -> bool:
+    """Return True if point c is on the segment ab
+
+    Ref.: https://stackoverflow.com/a/328193
+    """
+    return math.isclose(distance(a,c) + distance(c,b), distance(a,b))
+
+
+def in_bbox(point: Tuple[float, float], bbox: Tuple) -> bool:
+    """Evaluates if a point is in the provided bounding box.
+
+    A poin is in the BBOX if it is either completely within
+    the BBOX, or overlaps with the South (lower) or West (left) boundaries
+    of the BBOX.
+
+    :param point: A point defined as a tuple of cooridnates of (x,y)
+    :param bbox: Bounding Box as (minx, miny, maxx, maxy)
+    """
+    if not bbox or not point:
+        return False
+    x,y = 0,1
+    minx, miny, maxx, maxy = bbox
+    within = ((minx < point[x] < maxx) and
+              (miny < point[y] < maxy))
+    on_south_bdry = is_between((minx, miny), point, (maxx, miny))
+    on_west_bdry = is_between((minx, miny), point, (minx, maxy))
+    return any((within, on_south_bdry, on_west_bdry))
+
+
 def mean_coordinate(points: Iterable[Tuple]) -> Tuple[float, float]:
     """Compute the mean x- and y-coordinate from a list of points.
 
@@ -218,7 +253,7 @@ def __unpart1by1_64(n):
 
 
 def interleave(*args):
-    """Interleave two integers"""
+    """Interleave two integers to create a Morton key."""
     if len(args) != 2:
         raise ValueError('Usage: interleave2(x, y)')
     for arg in args:
@@ -229,12 +264,13 @@ def interleave(*args):
     return __part1by1_64(args[0]) | (__part1by1_64(args[1]) << 1)
 
 
-def deinterleave(n):
-    if not isinstance(n, int):
+def deinterleave(morton_key):
+    """Deinterleave a Morton key to get the original coordinates."""
+    if not isinstance(morton_key, int):
         print('Usage: deinterleave2(n)')
         raise ValueError("Supplied arguments contain a non-integer!")
 
-    return __unpart1by1_64(n), __unpart1by1_64(n >> 1)
+    return __unpart1by1_64(morton_key), __unpart1by1_64(morton_key >> 1)
 
 
 def morton_code(x: float, y: float):

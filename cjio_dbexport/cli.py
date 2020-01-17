@@ -30,7 +30,7 @@ from pathlib import Path
 from io import StringIO
 
 from psycopg2 import Error as pgError
-from psycopg2.extensions import quote_ident
+from psycopg2 import sql
 import click
 from cjio import cityjson
 
@@ -125,6 +125,7 @@ def index_cmd(ctx, extent, tilesize, drop):
     log.debug(f"BBOX {bbox}")
     click.echo(f"Tilesize is set to width={tilesize[0]}, height={tilesize[1]}"
                f" in CRS units")
+    # Create a rectangular grid of 4**x cells
     grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=tilesize[0],
                                               vspacing=tilesize[1])
     click.echo(f"Created {len(grid)} tiles")
@@ -140,19 +141,37 @@ def index_cmd(ctx, extent, tilesize, drop):
                 f"PostGIS is not installed in {conn.dbname}")
         else:
             log.debug(f"PostGIS version={pgversion}")
+        # Upload the extent to a temporary table
+        extent_tbl = sql.Identifier('extent')
+        good = tiler.create_temp_table(conn=conn,
+                                       srid=ctx.obj['cfg']['tile_index']['srid'],
+                                       extent=extent_tbl)
+        if not good:
+            raise click.ClickException(f"Could not create TEMPORARY TABLE for "
+                                       f"the extent. Check the logs for "
+                                       f"details.")
+        extent_ewkt = utils.to_ewkt(polygon=polygon,
+                                    srid=ctx.obj['cfg']['tile_index']['srid'])
+        good = tiler.insert_ewkt(conn=conn,
+                                 temp_table=extent_tbl,
+                                 ewkt=extent_ewkt)
+        if not good:
+            raise click.ClickException(f"Could not insert the extent into the "
+                                       f" 'extent' temporary table. Check the "
+                                       f"logs for details.")
+        # Create tile_index table
+        table = (tile_index.schema + tile_index.table).as_string(conn.conn)
         good = tiler.create_tx_table(conn, tile_index=tile_index,
                                      srid=ctx.obj['cfg']['tile_index']['srid'],
                                      drop=drop)
         if good:
-            click.echo(f"Created {tile_index.schema.string}."
-                       f"{tile_index.table.string} in {conn.dbname}")
+            click.echo(f"Created {table} in {conn.dbname}")
         else:
             raise click.ClickException(
                 f"Could not create {tile_index.schema.string}."
                 f"{tile_index.table.string} in {conn.dbname}. Check the logs for "
                 f"details.")
-        # Upload to the database
-        table = (tile_index.schema + tile_index.table).as_string(conn.conn)
+        # Upload the tile_index to the database
         values = StringIO()
         for idx, code in quadtree_idx.items():
             ewkt = utils.to_ewkt(polygon=grid[code],
@@ -171,11 +190,28 @@ def index_cmd(ctx, extent, tilesize, drop):
                                   columns=(tile_index.field.pk.string,
                                            tile_index.field.geometry.string),
                                   sep='\t')
-            click.echo(f"Inserted {len(grid)} tile polygons into {table}")
+            click.echo(f"Inserted {len(grid)} tiles into {table}")
         except pgError as e:
             raise click.ClickException(e)
         finally:
             values.close()
+        # Clip the tile index with the extent
+        click.echo(f"Clipping tile index {table} to the provided extent "
+                   f"polygon")
+        good = tiler.clip_grid(conn=conn,
+                               tile_index=tile_index,
+                               extent=extent_tbl)
+        if not good:
+            raise click.ClickException(
+                f"Could not clip the tile index to the extent."
+                f"Check the logs for details.")
+        # Create spatial index on the tile index
+        good = tiler.gist_on_grid(conn=conn,
+                                  tile_index=tile_index)
+        if not good:
+            raise click.ClickException(
+                f"Could not create SP-GiST on {table} geometry."
+                f"Check the logs for details.")
     finally:
         conn.close()
 
