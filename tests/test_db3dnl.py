@@ -52,3 +52,4 @@ class TestIntegration:
         grid = utils.create_rectangle_grid_morton(bbox=bbox,
                                                   hspacing=tilesize[0],
                                                   vspacing=tilesize[1])
+        log.info(f"Nr. of tiles={len(grid)}")

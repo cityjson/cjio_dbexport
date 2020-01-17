@@ -26,6 +26,9 @@ SOFTWARE.
 import math
 from statistics import mean
 from typing import Iterable, Tuple, Mapping
+import logging
+
+log = logging.getLogger(__name__)
 
 def create_rectangle_grid(bbox: Iterable[float], hspacing: float,
                           vspacing: float) -> Iterable:
@@ -59,19 +62,37 @@ def create_rectangle_grid(bbox: Iterable[float], hspacing: float,
 
 def create_rectangle_grid_morton(bbox: Iterable[float], hspacing: float,
                                  vspacing: float) -> Mapping:
-    """
+    """Creates a grid of rectangular polygons and computes their Morton code.
+
+    If the width or height of the ``bbox`` is not divisible by 4 without a
+    remainder, then the extent of the grid is expanded until it is. The reason
+    for doing so is that the output grid is meant to be used as the leafs of a
+    quadtree.
 
     :param bbox: (xmin, ymin, xmax, ymax)
-    :param hspacing:
-    :param vspacing:
-    :return: A MultiPolygon of rectangular polygons (the grid) as Simple Feature
+    :param hspacing: Width of a cell
+    :param vspacing: Height of a cell
+    :return: A dictionary of {morton code: Polygon}. Polygon is represented as
+        Simple Feature.
     """
     xmin, ymin, xmax, ymax = bbox
     width = math.ceil(xmax - xmin)
     height = math.ceil(ymax - ymin)
-    cols = math.ceil(width / hspacing)
-    rows = math.ceil(height / vspacing)
+    _c = math.ceil(width / hspacing)
+    cols = _c + (_c % 4)
+    _r = math.ceil(height / vspacing)
+    rows = _r + (_r % 4)
+    if rows < cols:
+        rows += cols - rows
+    elif cols < rows:
+        cols += rows - cols
+    # Expand extent until we get enough cells for a full quadtree
+    exponent = math.ceil(math.log(rows*cols, 4))
+    full_cells = 4**exponent
+    rows = int(math.sqrt(full_cells))
+    cols = int(math.sqrt(full_cells))
     grid = dict()
+
 
     for col in range(cols):
         x1 = float(xmin) + (col * hspacing)
@@ -91,6 +112,53 @@ def create_rectangle_grid_morton(bbox: Iterable[float], hspacing: float,
             grid[morton_key] = polygon
 
     return dict((k, grid[k]) for k in sorted(grid))
+
+
+def index_quadtree(grid):
+    """Create indices for the leafs of the quadtree.
+
+    Based on AHN's tile indexing.
+
+    :param grid: A rectangular grid of polygons which has 4**x cells. The cells
+        must be sorted in Morton-order.
+    """
+    quadtree = dict()
+    nr_cells = len(grid)
+    if not math.log(nr_cells, 4).is_integer():
+        raise ValueError(f"There are {nr_cells} in the grid. The grid must "
+                         f"contain 4**x cells to form a full quadtree. ")
+    # Nr. levels in the quadtree
+    nr_lvls = int(math.log(nr_cells, 4))
+    log.debug(f"Nr. levels={nr_lvls}, cells={nr_cells}")
+
+    id_map = {
+        0 : ('1', '2', '3', '4'),
+        1 : ('a', 'b', 'c', 'd'),
+        2 : ('e', 'f', 'g', 'i'),
+        3 : ('1', '2', '3', '4'),
+        4 : ('1', '2', '3', '4')
+    }
+
+    # Extend the ID map to have as many levels as there are in the quadtree
+    if nr_lvls > len(id_map):
+        diff = nr_lvls - len(id_map)
+        for i in range(diff):
+            id_map[5+i] = id_map[i]
+
+    # Compose the cell IDs per level
+    for i, mcode in enumerate(grid):
+        cell_id = ""
+        for j in range(nr_lvls, 0, -1):
+            lvl_id = id_map[j-1]
+            lvl_idx = int((i % 4**j) / 4**(j-1))
+            cell_id += lvl_id[lvl_idx]
+        if cell_id in quadtree:
+            raise IndexError(f"ID {cell_id} already exists in the quadtree")
+        else:
+            quadtree[cell_id] = mcode
+
+    return quadtree
+
 
 def bbox(polygon: Iterable) -> Tuple[float, float, float, float]:
     """Compute the Bounding Box of a polygon.

@@ -1,6 +1,7 @@
 # -*- coding: utf-8 -*-
 """Testing the utils module"""
 import logging
+import math
 import pytest
 from cjio_dbexport import utils
 
@@ -26,7 +27,15 @@ class TestGrid:
         bbox = (1032.05, 286175.81, 304847.26, 624077.50)
         grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=10000,
                                                   vspacing=10000)
-        assert len(grid) == 1054
+        lvls = math.log(len(grid), 4)
+        assert lvls.is_integer()
+
+    def test_index_quadtree(self):
+        bbox = (1032.05, 286175.81, 304847.26, 624077.50)
+        grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=10000,
+                                                  vspacing=10000)
+        utils.index_quadtree(grid)
+        log.debug("bla")
 
 class TestSorting:
     @pytest.mark.parametrize('point', [
