@@ -30,7 +30,7 @@ from collections import abc
 from keyword import iskeyword
 
 import psycopg2
-from psycopg2 import sql, extras, extensions
+from psycopg2 import sql, extras, extensions, errors
 
 log = logging.getLogger(__name__)
 
@@ -111,8 +111,12 @@ class Db(object):
         self.send_query(query)
 
     def check_postgis(self):
-        """Create the PostGIS extension if not exists."""
-        self.send_query("CREATE EXTENSION IF NOT EXISTS postgis;")
+        """Check if PostGIS is installed."""
+        try:
+            version = self.get_query("SELECT PostGIS_version();")[0][0]
+        except psycopg2.Error as e:
+            version = None
+        return version
 
     def get_fields(self, table):
         """List the fields in a table."""

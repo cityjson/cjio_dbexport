@@ -25,8 +25,9 @@ SOFTWARE.
 """
 import logging
 from typing import Mapping
-from psycopg2 import sql
+from psycopg2 import sql, errors
 from psycopg2 import Error as pgError
+from click import secho
 
 from cjio_dbexport import db
 
@@ -52,6 +53,52 @@ def create_temp_table(conn: db.Db, cfg: Mapping) -> bool:
         conn.send_query(query)
     except pgError as e:
         log.error(f"{e.pgcode}\t{e.pgerror}")
+        return False
+    return True
+
+def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
+    """Creates a temp table in Postgres for storing the tile index extent.
+    :returns: True on success
+    """
+    srid = str(srid)
+    if srid is None or len(srid) == 0:
+        raise ValueError(f"SRID={srid} is not valid. Set it in the configuration "
+                         f" file at tile_index.srid")
+    query_schema = sql.SQL(
+        "CREATE SCHEMA IF NOT EXISTS {};"
+    ).format(tile_index.schema.sqlid)
+    query_params = {
+        'table': tile_index.schema + tile_index.table,
+        'srid': sql.Literal(srid),
+        'gid': tile_index.field.pk.sqlid,
+        'geom': tile_index.field.geometry.sqlid
+    }
+    query = sql.SQL("""
+        CREATE TABLE {table}(
+            {gid} text PRIMARY KEY,  
+            {geom} geometry(POLYGON, {srid})
+        );
+    """).format(**query_params)
+    if drop:
+        drop_query = sql.SQL(
+            "DROP TABLE {} CASCADE;"
+        ).format(tile_index.schema + tile_index.table)
+    try:
+        log.debug(conn.print_query(query_schema))
+        conn.send_query(query_schema)
+        if drop:
+            log.debug(conn.print_query(drop_query))
+            conn.send_query(drop_query)
+        log.debug(conn.print_query(query))
+        conn.send_query(query)
+    except pgError as e:
+        if e.pgcode == '42P07':
+            log.error(f"{e.pgcode}\t{e.pgerror}")
+            secho("It is not possible append the tile index to an existing "
+                  "table. Use --drop if you want to DROP the existing table.",
+                  fg='red')
+        else:
+            log.error(f"{e.pgcode}\t{e.pgerror}")
         return False
     return True
 

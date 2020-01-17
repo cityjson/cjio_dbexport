@@ -22,6 +22,19 @@ class TestGeom:
         ewkt = utils.to_ewkt(polygon, srid=7415)
         assert ewkt == expect
 
+    def test_to_ewkt_nl(self, nl_poly):
+        polygon = utils.read_geojson_polygon(nl_poly)
+        ewkt = utils.to_ewkt(polygon, srid=7415)
+        log.debug(ewkt)
+
+    def test_to_ewkt_grid(self, nl_poly):
+        bbox = (1032.05, 286175.81, 304847.26, 624077.50)
+        grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=10000,
+                                                  vspacing=10000)
+        for code, poly in grid.items():
+            ewkt = utils.to_ewkt(poly, srid=7415)
+            log.debug(ewkt)
+
 class TestBBOX:
     @pytest.mark.parametrize('polygon, bbox', [
         [[[(1.0, 4.0), (3.0,1.0), (6.0, 2.0), (6.0, 6.0), (2.0, 7.0)]], (1.0, 1.0, 6.0, 7.0)],

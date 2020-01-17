@@ -89,8 +89,10 @@ def export_cmd(ctx, bbox, filename):
 @click.command('index')
 @click.argument('extent', type=click.File('r'))
 @click.argument('tilesize', type=float, nargs=2)
+@click.option('--drop', is_flag=True,
+              help="Drop the tile_index.table if it exists.")
 @click.pass_context
-def index_cmd(ctx, extent, tilesize):
+def index_cmd(ctx, extent, tilesize, drop):
     """Create a tile index for the specified extent.
 
     Run this command to create rectangular tiles for EXTENT and store the
@@ -101,7 +103,8 @@ def index_cmd(ctx, extent, tilesize):
     want to create a tile index for the Netherlands, EXTENT would be the
     polygon boundary of the Netherlands.
 
-    Note that the CRS must be consistent in EXTENT and
+    Note that the CRS must be consistent in the EXTENT and in the tile_index
+    table.
 
     For example the command below will,
 
@@ -128,31 +131,53 @@ def index_cmd(ctx, extent, tilesize):
     # Create the IDs for the tiles
     quadtree_idx = utils.index_quadtree(grid)
     # Check if schema and table exists
-    # Upload to the database
     conn = db.Db(**ctx.obj['cfg']['database'])
-    tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
-    table = (tile_index.schema + tile_index.table).as_string(conn.conn)
-    values = StringIO()
-    for idx, code in quadtree_idx.items():
-        ewkt = utils.to_ewkt(polygon=grid[code],
-                             srid=ctx.obj['cfg']['tile_index']['srid'])
-        values.write(f'{idx}\t{ewkt}\n')
     try:
-        with conn.conn:
-            with conn.conn.cursor() as cur:
-
-                cur.copy_from(values, table,
-                              columns=(tile_index.field.pk.string,
-                                       tile_index.field.geometry.string),
-                              sep='\t')
-        click.echo(f"Inserted {len(grid)} tile polygons into {table}")
-    except pgError as e:
-        raise click.ClickException(e)
+        tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
+        pgversion = conn.check_postgis()
+        if pgversion is None:
+            raise click.ClickException(
+                f"PostGIS is not installed in {conn.dbname}")
+        else:
+            log.debug(f"PostGIS version={pgversion}")
+        good = tiler.create_tx_table(conn, tile_index=tile_index,
+                                     srid=ctx.obj['cfg']['tile_index']['srid'],
+                                     drop=drop)
+        if good:
+            click.echo(f"Created {tile_index.schema.string}."
+                       f"{tile_index.table.string} in {conn.dbname}")
+        else:
+            raise click.ClickException(
+                f"Could not create {tile_index.schema.string}."
+                f"{tile_index.table.string} in {conn.dbname}. Check the logs for "
+                f"details.")
+        # Upload to the database
+        table = (tile_index.schema + tile_index.table).as_string(conn.conn)
+        values = StringIO()
+        for idx, code in quadtree_idx.items():
+            ewkt = utils.to_ewkt(polygon=grid[code],
+                                 srid=ctx.obj['cfg']['tile_index']['srid'])
+            values.write(f'{idx}\t{ewkt}\n')
+        values.seek(0)
+        log.debug(f"First <value>={values.readline()}")
+        values.seek(0)
+        try:
+            with conn.conn:
+                with conn.conn.cursor() as cur:
+                    log.debug(f"COPY {table} ({tile_index.field.pk.string},"
+                              f" {tile_index.field.geometry.string}) FROM "
+                              f"<value> ")
+                    cur.copy_from(values, table,
+                                  columns=(tile_index.field.pk.string,
+                                           tile_index.field.geometry.string),
+                                  sep='\t')
+            click.echo(f"Inserted {len(grid)} tile polygons into {table}")
+        except pgError as e:
+            raise click.ClickException(e)
+        finally:
+            values.close()
     finally:
         conn.close()
-        values.close()
-
-
 
 
 main.add_command(export_cmd)
