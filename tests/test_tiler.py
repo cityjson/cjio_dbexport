@@ -11,7 +11,9 @@ log = logging.getLogger(__name__)
 class TestTiler:
     def test_create_temp_table(self, cjdb_db):
         cfg = {'tile_index': {'srid': 7415}}
-        assert tiler.create_temp_table(conn=cjdb_db, cfg=cfg)
+        assert tiler.create_temp_table(conn=cjdb_db,
+                                       srid=7415,
+                                       extent=sql.Identifier('extent'))
         res = cjdb_db.get_query("select * from extent;")
         log.info(res)
 

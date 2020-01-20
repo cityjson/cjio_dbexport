@@ -48,6 +48,8 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
     :param bbox:
     :return:
     """
+    # Set EPSG
+    epsg = 7415
     # Exclude columns from the selection
     table_fields = conn.get_fields(features.schema + features.table)
     if features.field.exclude:
@@ -62,7 +64,6 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
     # BBOX clause
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
-        epsg = 7415
         where_bbox = sql.SQL(
             f"WHERE ST_Intersects({features.field.geometry.string},"
             f"ST_MakeEnvelope({','.join(map(str, bbox))}, {str(epsg)}))")
@@ -74,7 +75,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
         'geometry': features.field.geometry.sqlid,
-        'table': features.schema + features.table,
+        'tbl': features.schema + features.table,
         'attr': attr_select,
         'where_bbox': where_bbox
     }
@@ -85,7 +86,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
             {pk} pk,
             {attr}
         FROM
-            {TABLE}
+            {tbl}
     ),
     polygons AS (
         SELECT
@@ -93,7 +94,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
             (ST_Dump({geometry})).geom,
             {coid} coid
         FROM
-            {TABLE}
+            {tbl}
         {where_bbox}
     ),
     boundary AS (
@@ -116,7 +117,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
     INNER JOIN attrs a ON
         b.pk = a.pk;
     """).format(**query_params)
-
+    log.debug(conn.print_query(query))
     return query
 
 
@@ -128,6 +129,8 @@ def export(conn: db.Db, cfg: Mapping, bbox=None):
     :param bbox:
     :return: A citymodel of :py:class:`cityjson.CityJSON`
     """
+    # Set EPSG
+    epsg = 7415
     cm = cityjson.CityJSON()
     for cotype, cotables in cfg['cityobject_type'].items():
         for cotable in cotables:
@@ -189,7 +192,7 @@ def export(conn: db.Db, cfg: Mapping, bbox=None):
     cityobjects, vertex_lookup = cm.reference_geometry()
     cm.add_to_j(cityobjects, vertex_lookup)
     cm.update_bbox()
-    cm.set_epsg(7415)
+    cm.set_epsg(epsg)
     log.info(f"Exported CityModel:\n{cm}")
 
     return cm
