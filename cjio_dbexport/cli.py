@@ -180,12 +180,15 @@ def export_extent_cmd(ctx, extent, filename):
     path = Path(filename).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
+
+    polygon = cjio_dbexport.utils.read_geojson_polygon(extent)
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
         cm = db3dnl.export(conn=conn,
                            cfg=ctx.obj['cfg'],
-                           extent=extent)
+                           extent=polygon)
         cityjson.save(cm, path=path, indent=None)
+        click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
     finally:

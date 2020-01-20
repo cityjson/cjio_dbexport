@@ -34,13 +34,13 @@ from cjio.models import CityObject, Geometry
 from psycopg2 import sql
 from psycopg2 import Error as pgError
 
-from cjio_dbexport import db
+from cjio_dbexport import db, utils
 
 log = logging.getLogger(__name__)
 
 
 def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
-                tile_list=None, bbox=None):
+                tile_list=None, bbox=None, extent=None):
     """Build an SQL query for extracting CityObjects from a single table.
 
     ..todo: make EPSG a parameter
@@ -73,6 +73,11 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
         polygons_sub = query_tiles_in_list(features=features,
                                            tile_index=tile_index,
                                            tile_list=tile_list)
+    elif extent:
+        log.info(f"Exporting with polygon extent")
+        ewkt = utils.to_ewkt(polygon=extent, srid=epsg)
+        polygons_sub = query_extent(features=features,
+                                    ewkt=ewkt)
     else:
         log.info(f"Exporting the whole database")
         polygons_sub = query_all(features)
@@ -165,6 +170,31 @@ def query_bbox(features, bbox, epsg):
         WHERE ST_Intersects(
             {geometry},
             ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
+            )
+    )
+    """).format(**query_params)
+
+
+def query_extent(features, ewkt):
+    """Build a subquery of the geometry in a polygon."""
+    query_params = {
+        'pk': features.field.pk.sqlid,
+        'coid': features.field.cityobject_id.sqlid,
+        'geometry': features.field.geometry.sqlid,
+        'tbl': features.schema + features.table,
+        'poly': sql.Literal(ewkt),
+    }
+    return sql.SQL("""
+    polygons AS (
+        SELECT
+            {pk} pk,
+            (ST_Dump({geometry})).geom,
+            {coid} coid
+        FROM
+            {tbl}
+        WHERE ST_Intersects(
+            {geometry},
+            {poly}
             )
     )
     """).format(**query_params)
@@ -290,7 +320,7 @@ def export(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
 
             query = build_query(conn=conn, features=features,
                                 tile_index=tile_index, tile_list=tile_list,
-                                bbox=bbox)
+                                bbox=bbox, extent=extent)
             try:
                 resultset = conn.get_dict(query)
             except pgError as e:
