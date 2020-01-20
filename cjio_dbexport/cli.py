@@ -77,9 +77,11 @@ def export_all_cmd(ctx, filename):
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
+        click.echo(f"Exporting the whole database")
         cm = db3dnl.export(conn=conn,
                            cfg=ctx.obj['cfg'])
         cityjson.save(cm, path=path, indent=None)
+        click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
     finally:
@@ -102,30 +104,33 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
     path = Path(dir).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
+    conn = db.Db(**ctx.obj['cfg']['database'])
+    tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
+    tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
+                                 tile_list=tiles)
     if merge:
-        conn = db.Db(**ctx.obj['cfg']['database'])
         filepath = (path / 'merged').with_suffix('.json')
         try:
+            click.echo(f"Exporting merged tiles {tiles}")
             cm = db3dnl.export(conn=conn,
                                cfg=ctx.obj['cfg'],
-                               tile_list=tiles)
+                               tile_list=tile_list)
             cityjson.save(cm, path=filepath, indent=None)
+            click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except Exception as e:
             raise click.exceptions.ClickException(e)
         finally:
             conn.close()
     else:
-        # TODO: check for 'all'
-        conn = db.Db(**ctx.obj['cfg']['database'])
         try:
-            for tile in tiles:
+            for tile in tile_list:
                 click.echo(f"Exporting tile {tile}")
                 filepath = (path / tile).with_suffix('.json')
                 cm = db3dnl.export(conn=conn,
                                    cfg=ctx.obj['cfg'],
                                    tile_list=(tile,))
                 cityjson.save(cm, path=filepath, indent=None)
-                click.echo(f"Saved tile {tile} to {filepath}")
+                click.echo(f"Saved CityJSON tile {tile} to {filepath}")
         except Exception as e:
             raise click.exceptions.ClickException(e)
         finally:
@@ -153,6 +158,7 @@ def export_bbox_cmd(ctx, bbox, filename):
                            cfg=ctx.obj['cfg'],
                            bbox=bbox)
         cityjson.save(cm, path=path, indent=None)
+        click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
     finally:

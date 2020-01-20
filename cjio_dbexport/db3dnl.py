@@ -26,7 +26,7 @@ SOFTWARE.
 import logging
 import re
 from datetime import datetime
-from typing import Mapping
+from typing import Mapping, Iterable
 
 from click import ClickException
 from cjio import cityjson
@@ -172,6 +172,7 @@ def query_bbox(features, bbox, epsg):
 
 def query_tiles_in_list(features, tile_index, tile_list):
     """Build a subquery of the geometry in the tile list."""
+    tl_tup = tuple(tile_list)
     query_params = {
         'tbl': features.schema + features.table,
         'tbl_pk': features.field.pk.sqlid,
@@ -180,7 +181,7 @@ def query_tiles_in_list(features, tile_index, tile_list):
         'tile_index': tile_index.schema + tile_index.table,
         'tx_geom': tile_index.field.geometry.sqlid,
         'tx_pk': tile_index.field.pk.sqlid,
-        'tile_list': sql.Literal(tile_list)
+        'tile_list': sql.Literal(tl_tup)
     }
     return sql.SQL("""
     extent AS (
@@ -210,6 +211,57 @@ def query_tiles_in_list(features, tile_index, tile_list):
             sub
     )
     """).format(**query_params)
+
+
+def with_list(conn: db.Db, tile_index: db.Schema,
+              tile_list: Iterable[str]) -> Iterable[str]:
+    """Select tiles based on a list of tile IDs."""
+    if 'all' == tile_list[0].lower():
+        log.info("Getting all tiles from the index.")
+        in_index = all_in_index(conn=conn, tile_index=tile_index)
+    else:
+        log.info("Verifying if the provided tiles are in the index.")
+        in_index = tiles_in_index(conn=conn, tile_index=tile_index,
+                                  tile_list=tile_list)
+    if len(in_index) == 0:
+        raise AttributeError("None of the provided tiles are present in the"
+                             " index.")
+    else:
+        return in_index
+
+
+def tiles_in_index(conn: db.Db, tile_index: db.Schema,
+                   tile_list: Iterable[str]) -> Iterable[str]:
+    """Return the tile IDs that are present in the tile index."""
+    query_params = {
+        'tiles': sql.Literal(tile_list),
+        'index_': tile_index.schema + tile_index.table,
+        'tile': tile_index.field.pk.sqlid
+    }
+    query = sql.SQL("""
+    SELECT DISTINCT {tile}
+    FROM {index_}
+    WHERE {tile} IN {tiles}
+    """).format(**query_params)
+    log.debug(conn.print_query(query))
+    in_index = [t[0] for t in conn.get_query(query)]
+    diff = set(tile_list) - set(in_index)
+    if len(diff) > 0:
+        log.warning(f"The provided tile IDs {diff} are not in the index, "
+                    f"they are skipped.")
+    return in_index
+
+def all_in_index(conn: db.Db, tile_index: db.Schema) -> Iterable[str]:
+    """Get all tile IDs from the tile index."""
+    query_params = {
+        'index_': tile_index.schema + tile_index.table,
+        'tile': tile_index.field.pk.sqlid
+    }
+    query = sql.SQL("""
+    SELECT DISTINCT {tile} FROM {index_}
+    """).format(**query_params)
+    log.debug(conn.print_query(query))
+    return [t[0] for t in conn.get_query(query)]
 
 
 def export(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
