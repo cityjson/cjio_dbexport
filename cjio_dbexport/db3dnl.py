@@ -28,16 +28,19 @@ import re
 from datetime import datetime
 from typing import Mapping
 
+from click import ClickException
 from cjio import cityjson
 from cjio.models import CityObject, Geometry
 from psycopg2 import sql
+from psycopg2 import Error as pgError
 
 from cjio_dbexport import db
 
 log = logging.getLogger(__name__)
 
 
-def build_query(conn: db.Db, features: db.Schema, bbox=None):
+def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
+                tile_list=None, bbox=None):
     """Build an SQL query for extracting CityObjects from a single table.
 
     ..todo: make EPSG a parameter
@@ -61,14 +64,18 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
                                      col != features.field.geometry.string and
                                      col != features.field.cityobject_id.string and
                                      col not in exclude)
-    # BBOX clause
+    # polygons subquery
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
-        where_bbox = sql.SQL(
-            f"WHERE ST_Intersects({features.field.geometry.string},"
-            f"ST_MakeEnvelope({','.join(map(str, bbox))}, {str(epsg)}))")
+        polygons_sub = query_bbox(features, bbox, epsg)
+    elif tile_list:
+        log.info(f"Exporting with a list of tiles {tile_list}")
+        polygons_sub = query_tiles_in_list(features=features,
+                                           tile_index=tile_index,
+                                           tile_list=tile_list)
     else:
-        where_bbox = sql.SQL("")
+        log.info(f"Exporting the whole database")
+        polygons_sub = query_all(features)
 
     # Main query
     query_params = {
@@ -77,7 +84,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
         'geometry': features.field.geometry.sqlid,
         'tbl': features.schema + features.table,
         'attr': attr_select,
-        'where_bbox': where_bbox
+        'polygons': polygons_sub
     }
 
     query = sql.SQL("""
@@ -88,15 +95,7 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
         FROM
             {tbl}
     ),
-    polygons AS (
-        SELECT
-            {pk} pk,
-            (ST_Dump({geometry})).geom,
-            {coid} coid
-        FROM
-            {tbl}
-        {where_bbox}
-    ),
+    {polygons},
     boundary AS (
         SELECT
             pk,
@@ -121,7 +120,100 @@ def build_query(conn: db.Db, features: db.Schema, bbox=None):
     return query
 
 
-def export(conn: db.Db, cfg: Mapping, bbox=None):
+def query_all(features):
+    """Build a subquery of all the geometry in the table."""
+    query_params = {
+        'pk': features.field.pk.sqlid,
+        'coid': features.field.cityobject_id.sqlid,
+        'geometry': features.field.geometry.sqlid,
+        'tbl': features.schema + features.table
+    }
+    return sql.SQL("""
+    polygons AS (
+        SELECT
+            {pk} pk,
+            (ST_Dump({geometry})).geom,
+            {coid} coid
+        FROM
+            {tbl}
+    )
+    """).format(**query_params)
+
+
+def query_bbox(features, bbox, epsg):
+    """Build a subquery of the geometry in a BBOX."""
+    envelope = ','.join(map(str, bbox))
+    query_params = {
+        'pk': features.field.pk.sqlid,
+        'coid': features.field.cityobject_id.sqlid,
+        'geometry': features.field.geometry.sqlid,
+        'epsg': sql.Literal(epsg),
+        'xmin': sql.Literal(bbox[0]),
+        'ymin': sql.Literal(bbox[1]),
+        'xmax': sql.Literal(bbox[2]),
+        'ymax': sql.Literal(bbox[3]),
+        'tbl': features.schema + features.table
+    }
+    return sql.SQL("""
+    polygons AS (
+        SELECT
+            {pk} pk,
+            (ST_Dump({geometry})).geom,
+            {coid} coid
+        FROM
+            {tbl}
+        WHERE ST_Intersects(
+            {geometry},
+            ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
+            )
+    )
+    """).format(**query_params)
+
+
+def query_tiles_in_list(features, tile_index, tile_list):
+    """Build a subquery of the geometry in the tile list."""
+    query_params = {
+        'tbl': features.schema + features.table,
+        'tbl_pk': features.field.pk.sqlid,
+        'tbl_coid': features.field.cityobject_id.sqlid,
+        'tbl_geom': features.field.geometry.sqlid,
+        'tile_index': tile_index.schema + tile_index.table,
+        'tx_geom': tile_index.field.geometry.sqlid,
+        'tx_pk': tile_index.field.pk.sqlid,
+        'tile_list': sql.Literal(tile_list)
+    }
+    return sql.SQL("""
+    extent AS (
+        SELECT
+            st_union({tx_geom}) geom
+        FROM
+            {tile_index}
+        WHERE
+            {tx_pk} IN {tile_list}
+    ),
+    sub AS (
+        SELECT
+            a.*
+        FROM
+            {tbl} a,
+            extent t
+        WHERE
+            st_intersects(t.geom,
+            a.{tbl_geom})
+    ),
+    polygons AS (
+        SELECT
+            {tbl_pk} pk,
+            (ST_Dump({tbl_geom})).geom,
+            {tbl_coid} coid
+        FROM
+            sub
+    )
+    """).format(**query_params)
+
+
+def export(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
+           extent=None):
     """Export a table to CityModel
 
     :param conn:
@@ -132,6 +224,7 @@ def export(conn: db.Db, cfg: Mapping, bbox=None):
     # Set EPSG
     epsg = 7415
     cm = cityjson.CityJSON()
+    tile_index = db.Schema(cfg['tile_index'])
     for cotype, cotables in cfg['cityobject_type'].items():
         for cotable in cotables:
             log.info(f"CityObject {cotype} from table {cotable['table']}")
@@ -143,8 +236,15 @@ def export(conn: db.Db, cfg: Mapping, bbox=None):
 
             features = db.Schema(cotable)
 
-            query = build_query(conn=conn, features=features, bbox=bbox)
-            resultset = conn.get_dict(query)
+            query = build_query(conn=conn, features=features,
+                                tile_index=tile_index, tile_list=tile_list,
+                                bbox=bbox)
+            try:
+                resultset = conn.get_dict(query)
+            except pgError as e:
+                log.error(f"{e.pgcode}\t{e.pgerror}")
+                raise ClickException(f"Could not query {cotable}. Check the "
+                                     f"logs for details.")
 
             # Loop through the whole resultset and create the CityObjects
             for record in resultset:

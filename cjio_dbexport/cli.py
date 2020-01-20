@@ -65,12 +65,65 @@ def main(ctx, verbose, quiet, configuration):
 
 
 @click.command('export')
-@click.option('--bbox', nargs=4, type=float,
-              help='2D bbox: (minx miny maxx maxy).')
 @click.argument('filename', type=str)
 @click.pass_context
-def export_cmd(ctx, bbox, filename):
-    """Export into a CityJSON file."""
+def export_all_cmd(ctx, filename):
+    """Export the whole database into a CityJSON file.
+
+    FILENAME is the path and name of the output file.
+    """
+    path = Path(filename).resolve()
+    if not Path(path.parent).exists():
+        raise NotADirectoryError(f"Directory {path.parent} not exists")
+    conn = db.Db(**ctx.obj['cfg']['database'])
+    try:
+        cm = db3dnl.export(conn=conn,
+                           cfg=ctx.obj['cfg'])
+        cityjson.save(cm, path=path, indent=None)
+    except Exception as e:
+        raise click.exceptions.ClickException(e)
+    finally:
+        conn.close()
+
+@click.command('export_tiles')
+@click.argument('tiles', nargs=-1, type=str)
+@click.argument('filename', type=str)
+@click.pass_context
+def export_tiles_cmd(ctx, tiles, filename):
+    """Export the objects within the given tiles into a CityJSON file.
+
+    TILES is a list of tile IDs from the tile_index, or 'all' which exports
+    the object from all tiles from the tile_index.
+
+    FILENAME is the path and name of the output file.
+    """
+    path = Path(filename).resolve()
+    if not Path(path.parent).exists():
+        raise NotADirectoryError(f"Directory {path.parent} not exists")
+    conn = db.Db(**ctx.obj['cfg']['database'])
+    try:
+        cm = db3dnl.export(conn=conn,
+                           cfg=ctx.obj['cfg'],
+                           tile_list=tiles)
+        cityjson.save(cm, path=path, indent=None)
+    except Exception as e:
+        raise click.exceptions.ClickException(e)
+    finally:
+        conn.close()
+
+
+@click.command('export_bbox')
+@click.argument('bbox', nargs=4, type=float)
+@click.argument('filename', type=str)
+@click.pass_context
+def export_bbox_cmd(ctx, bbox, filename):
+    """Export the objects within a 2D Bounding Box into a CityJSON file.
+
+    BBOX is a 2D Bounding Box (minx miny maxx maxy). The units of the
+    coordinates must match the CRS in the database.
+
+    FILENAME is the path and name of the output file.
+    """
     path = Path(filename).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
@@ -79,6 +132,33 @@ def export_cmd(ctx, bbox, filename):
         cm = db3dnl.export(conn=conn,
                            cfg=ctx.obj['cfg'],
                            bbox=bbox)
+        cityjson.save(cm, path=path, indent=None)
+    except Exception as e:
+        raise click.exceptions.ClickException(e)
+    finally:
+        conn.close()
+
+
+@click.command('export_extent')
+@click.argument('extent', type=click.File('r'))
+@click.argument('filename', type=str)
+@click.pass_context
+def export_extent_cmd(ctx, extent, filename):
+    """Export the objects within the given polygon into a CityJSON file.
+
+    EXTENT is a GeoJSON file that contains a single Polygon. The CRS of the
+    file must be data same as in the database.
+
+    FILENAME is the path and name of the output file.
+    """
+    path = Path(filename).resolve()
+    if not Path(path.parent).exists():
+        raise NotADirectoryError(f"Directory {path.parent} not exists")
+    conn = db.Db(**ctx.obj['cfg']['database'])
+    try:
+        cm = db3dnl.export(conn=conn,
+                           cfg=ctx.obj['cfg'],
+                           extent=extent)
         cityjson.save(cm, path=path, indent=None)
     except Exception as e:
         raise click.exceptions.ClickException(e)
@@ -216,7 +296,11 @@ def index_cmd(ctx, extent, tilesize, drop):
         conn.close()
 
 
-main.add_command(export_cmd)
+main.add_command(export_all_cmd)
+main.add_command(export_bbox_cmd)
+main.add_command(export_extent_cmd)
+main.add_command(export_tiles_cmd)
+
 main.add_command(index_cmd)
 
 if __name__ == "__main__":

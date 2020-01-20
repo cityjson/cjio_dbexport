@@ -47,6 +47,12 @@ class TestIntegration:
         print(cm.get_info())
         # assert cm.validate()
 
+    def test_export_tile_list(self, data_dir, cfg_parsed, db3dnl_db, caplog):
+        caplog.set_level(logging.DEBUG)
+        cm = db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
+                           tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+        print(cm.get_info())
+
     def test_index(self, data_dir, nl_poly):
         tilesize = (10000, 10000)
         polygon = cjio_dbexport.utils.read_geojson_polygon(nl_poly)
