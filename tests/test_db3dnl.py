@@ -25,7 +25,9 @@ def test_parse_boundary():
 @pytest.mark.db3dnl
 def test_build_query(db3dnl_db, cfg_parsed):
     features = db.Schema(cfg_parsed['cityobject_type']['LandUse'][0])
+    tile_index = db.Schema(cfg_parsed['tile_index'])
     query = db3dnl.build_query(conn=db3dnl_db, features=features,
+                               tile_index=tile_index,
                                bbox=[192837.734, 465644.179, 193701.818,
                                      466898.821])
     query_str = db3dnl_db.print_query(query)
@@ -51,6 +53,14 @@ class TestIntegration:
         caplog.set_level(logging.DEBUG)
         cm = db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
                            tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+        print(cm.get_info())
+
+    def test_export_extent(self, data_dir, cfg_parsed, db3dnl_db, caplog):
+        caplog.set_level(logging.DEBUG)
+        with open(data_dir / 'db3dnl_poly.geojson', 'r') as fo:
+            polygon = utils.read_geojson_polygon(fo)
+        cm = db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
+                           extent=polygon)
         print(cm.get_info())
 
     def test_index(self, data_dir, nl_poly):
