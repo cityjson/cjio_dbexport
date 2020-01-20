@@ -39,7 +39,7 @@ Install for development
 
 Requires Python 3.6+
 
-The project is pre-alpha, please install directly from GitHub with pip:
+The project is alpha, please install directly from GitHub with pip:
 
 .. code-block::
 
@@ -52,7 +52,7 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
 
 .. code-block::
 
-    $ cjdb tests/data/test_config.yml --help
+    $ cjdb config.yml --help
 
     Usage: cjdb [OPTIONS] CONFIGURATION COMMAND [ARGS]...
 
@@ -67,7 +67,13 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
       --help         Show this message and exit.
 
     Commands:
-      export  Export into a CityJSON file.
+      export         Export the whole database into a CityJSON file.
+      export_bbox    Export the objects within a 2D Bounding Box into a
+                     CityJSON...
+      export_extent  Export the objects within the given polygon into a
+                     CityJSON...
+      export_tiles   Export the objects within the given tiles into a CityJSON...
+      index          Create a tile index for the specified extent.
 
 
 This tool uses a YAML-based configuration file to managing the database
@@ -97,6 +103,14 @@ By default all columns, excluding the three above, are added as Attributes to th
       user: some_user
       password: some_password
 
+    tile_index:
+      schema: tile_index
+      table: tile_index_1
+      srid: 7415
+      field:
+        pk: id
+        geometry: geom
+
     cityobject_type:
       WaterBody:
         - schema: public
@@ -122,11 +136,60 @@ By default all columns, excluding the three above, are added as Attributes to th
             cityobject_id: identificatie
             exclude: ["xml"]
 
+Exporting a subset
+******************
+
 You can provide a bounding box (minx miny maxx maxy) to limit the extent of the export.
 
 .. code-block::
 
-    $ cjdb tests/data/test_config.yml export --bbox 123.4 545.5 678.8 987.8 path/to/some/file.json
+    $ cjdb config.yml export_bbox 123.4 545.5 678.8 987.8
+path/to/output.json
+
+To export an irregular extent, provide a single
+Polygon in a GeoJSON file.
+
+.. code-block::
+
+    $ cjdb config.yml export_extent polygon.geojson path/to/output.json
+
+To export a set of tiles into a separate CityJSON file each, provide their
+tile IDs. The command below will export the tiles ``ci1``, ``ci2``, ``gb4``
+into the given directory. If you want to merge the tiles into a single file,
+provide
+the ``--merge`` option to ``export_tiles``. If you want to export all the
+tiles from the *tile index*, then pass ``all`` as the tile ID.
+
+.. code-block::
+
+    $ cjdb config.yml export_tiles ci1 ci2 gb4 path/to/directory
+
+Creating a tile index
+*********************
+
+If you have a database of a large area, you probably want to export it
+piece-by-piece, in tiles. This requires a *tile index*, which is a rectangular
+grid of polygons that fully covers your area, and each polygon has a unique ID.
+
+The ``index`` command can help you create such a tile index. It requires a
+polygonal *extent* of your area as GeoJSON file and the *width* and *height*
+of the tiles you want to create. The units for the tile size are same as the
+unit of the CRS in the database.
+
+.. code-block::
+
+    $ cjdb config.yml index netherlands.json 1000 1000
+
+The command above will,
+
+1. create rectangular polygons (tiles) of 1000m by 1000m for the extent
+of the polygon that is ``netherlands.json``,
+
+2. sort the tiles in Morton-order and create unique IDs for them
+accordingly,
+
+3. upload the tile index into the relation that is declared in
+``config.yml`` under the ``tile_index`` node.
 
 
 Limitations
@@ -135,8 +198,6 @@ Limitations
 + Hardcoded to LoD 1, no semantics, no appearances
 
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
-
-+ Either export the whole database table, or subset with a bounding box
 
 + Only tested with PostgresSQL 11, PostGIS 2.5
 
