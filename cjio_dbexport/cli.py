@@ -87,29 +87,49 @@ def export_all_cmd(ctx, filename):
 
 @click.command('export_tiles')
 @click.argument('tiles', nargs=-1, type=str)
-@click.argument('filename', type=str)
+@click.option('--merge', is_flag=True,
+              help='Merge the requested tiles into a single file')
+@click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, filename):
+def export_tiles_cmd(ctx, tiles, merge, dir):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
     the object from all tiles from the tile_index.
 
-    FILENAME is the path and name of the output file.
+    DIR is the path to the output directory.
     """
-    path = Path(filename).resolve()
+    path = Path(dir).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
-    conn = db.Db(**ctx.obj['cfg']['database'])
-    try:
-        cm = db3dnl.export(conn=conn,
-                           cfg=ctx.obj['cfg'],
-                           tile_list=tiles)
-        cityjson.save(cm, path=path, indent=None)
-    except Exception as e:
-        raise click.exceptions.ClickException(e)
-    finally:
-        conn.close()
+    if merge:
+        conn = db.Db(**ctx.obj['cfg']['database'])
+        filepath = (path / 'merged').with_suffix('.json')
+        try:
+            cm = db3dnl.export(conn=conn,
+                               cfg=ctx.obj['cfg'],
+                               tile_list=tiles)
+            cityjson.save(cm, path=filepath, indent=None)
+        except Exception as e:
+            raise click.exceptions.ClickException(e)
+        finally:
+            conn.close()
+    else:
+        # TODO: check for 'all'
+        conn = db.Db(**ctx.obj['cfg']['database'])
+        try:
+            for tile in tiles:
+                click.echo(f"Exporting tile {tile}")
+                filepath = (path / tile).with_suffix('.json')
+                cm = db3dnl.export(conn=conn,
+                                   cfg=ctx.obj['cfg'],
+                                   tile_list=(tile,))
+                cityjson.save(cm, path=filepath, indent=None)
+                click.echo(f"Saved tile {tile} to {filepath}")
+        except Exception as e:
+            raise click.exceptions.ClickException(e)
+        finally:
+            conn.close()
 
 
 @click.command('export_bbox')
