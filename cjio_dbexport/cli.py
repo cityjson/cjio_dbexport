@@ -124,13 +124,13 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
     else:
         try:
             for tile in tile_list:
-                click.echo(f"Exporting tile {tile}")
-                filepath = (path / tile).with_suffix('.json')
+                click.echo(f"Exporting tile {str(tile)}")
+                filepath = (path / str(tile)).with_suffix('.json')
                 cm = db3dnl.export(conn=conn,
                                    cfg=ctx.obj['cfg'],
                                    tile_list=(tile,))
                 cityjson.save(cm, path=filepath, indent=None)
-                click.echo(f"Saved CityJSON tile {tile} to {filepath}")
+                click.echo(f"Saved CityJSON tile {str(tile)} to {filepath}")
         except Exception as e:
             raise click.exceptions.ClickException(e)
         finally:

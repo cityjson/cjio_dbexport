@@ -3,7 +3,9 @@
 
 import logging
 import pytest
+from pathlib import Path
 
+from cjio import cityjson
 import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, tiler,utils
 
@@ -71,3 +73,85 @@ class TestIntegration:
                                                   hspacing=tilesize[0],
                                                   vspacing=tilesize[1])
         log.info(f"Nr. of tiles={len(grid)}")
+
+    def test_export_tiles_int_cmd(self, cfg_db3dnl_int, data_dir,
+                                  merge=False):
+        """Test when the tile_index ID is an integer in the database, not a
+        string."""
+        dir = str(data_dir)
+        tiles = ('1','2')
+        path = Path(dir).resolve()
+        if not Path(path.parent).exists():
+            raise NotADirectoryError(f"Directory {path.parent} not exists")
+        conn = db.Db(**cfg_db3dnl_int['database'])
+        tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
+        tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
+                                     tile_list=tiles)
+        if merge:
+            filepath = (path / 'merged').with_suffix('.json')
+            try:
+                log.info(f"Exporting merged tiles {tiles}")
+                cm = db3dnl.export(conn=conn,
+                                   cfg=cfg_db3dnl_int,
+                                   tile_list=tile_list)
+                cityjson.save(cm, path=filepath, indent=None)
+                log.info(f"Saved merged CityJSON tiles to {filepath}")
+            except Exception as e:
+                raise e
+            finally:
+                conn.close()
+        else:
+            try:
+                for tile in tile_list:
+                    log.info(f"Exporting tile {str(tile)}")
+                    filepath = (path / str(tile)).with_suffix('.json')
+                    cm = db3dnl.export(conn=conn,
+                                       cfg=cfg_db3dnl_int,
+                                       tile_list=(tile,))
+                    cityjson.save(cm, path=filepath, indent=None)
+                    log.info(f"Saved CityJSON tile {str(tile)} to {filepath}")
+            except Exception as e:
+                raise e
+            finally:
+                conn.close()
+
+    def test_export_tiles_int_list_cmd(self, cfg_db3dnl_int, data_dir,
+                                  merge=False):
+        """Test when the tile_index ID is an integer in the database, not a
+        string AND the tiles are a list, not a tuple."""
+        dir = str(data_dir)
+        tiles = ['1','2']
+        path = Path(dir).resolve()
+        if not Path(path.parent).exists():
+            raise NotADirectoryError(f"Directory {path.parent} not exists")
+        conn = db.Db(**cfg_db3dnl_int['database'])
+        tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
+        tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
+                                     tile_list=tiles)
+        if merge:
+            filepath = (path / 'merged').with_suffix('.json')
+            try:
+                log.info(f"Exporting merged tiles {tiles}")
+                cm = db3dnl.export(conn=conn,
+                                   cfg=cfg_db3dnl_int,
+                                   tile_list=tile_list)
+                cityjson.save(cm, path=filepath, indent=None)
+                log.info(f"Saved merged CityJSON tiles to {filepath}")
+            except Exception as e:
+                raise e
+            finally:
+                conn.close()
+        else:
+            try:
+                for tile in tile_list:
+                    log.info(f"Exporting tile {str(tile)}")
+                    filepath = (path / str(tile)).with_suffix('.json')
+                    cm = db3dnl.export(conn=conn,
+                                       cfg=cfg_db3dnl_int,
+                                       tile_list=(tile,))
+                    cityjson.save(cm, path=filepath, indent=None)
+                    log.info(f"Saved CityJSON tile {str(tile)} to {filepath}")
+            except Exception as e:
+                raise e
+            finally:
+                conn.close()

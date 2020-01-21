@@ -67,6 +67,13 @@ def cfg_parsed(data_dir):
         c = configure.parse_configuration(fo)
         yield c
 
+@pytest.fixture('session')
+def cfg_db3dnl_int(data_dir):
+    config = data_dir / 'db3dnl_config_int.yml'
+    with open(config, 'r') as fo:
+        c = configure.parse_configuration(fo)
+        yield c
+
 
 @pytest.fixture('session')
 def db3dnl_db(cfg_parsed):
