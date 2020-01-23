@@ -52,7 +52,7 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
 
 .. code-block::
 
-    $ cjdb config.yml --help
+    $ cjdb --help
 
     Usage: cjdb [OPTIONS] CONFIGURATION COMMAND [ARGS]...
 
@@ -61,10 +61,10 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
       CONFIGURATION is the YAML configuration file.
 
     Options:
-      -v, --verbose  Increase verbosity. You can increment the level by chaining
-                     the argument, eg. -vvv
-      -q, --quiet    Decrease verbosity.
-      --help         Show this message and exit.
+      --log [DEBUG|INFO|WARNING|ERROR|CRITICAL]
+                                      Set the logging level in the log file
+                                      'cjdb.log'.
+      --help                          Show this message and exit.
 
     Commands:
       export         Export the whole database into a CityJSON file.

@@ -41,24 +41,23 @@ from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils
 
 @click.group()
 @click.option(
-    '--verbose', '-v',
-    count=True,
-    help="Increase verbosity. You can increment the level by chaining the "
-         "argument, eg. -vvv")
-@click.option(
-    '--quiet', '-q',
-    count=True,
-    help="Decrease verbosity.")
+    '--log',
+    type=click.Choice(
+        ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
+        case_sensitive=False),
+    default='DEBUG',
+    help="Set the logging level in the log file 'cjdb.log'.")
 @click.argument('configuration', type=click.File('r'))
 @click.pass_context
-def main(ctx, verbose, quiet, configuration):
+def main(ctx, log, configuration):
     """Export tool from PostGIS to CityJSON.
 
     CONFIGURATION is the YAML configuration file.
     """
     ctx.ensure_object(dict)
-    verbosity = verbose - quiet
-    recorder.configure_logging(verbosity)
+    logfile = 'cjdb.log'
+    recorder.configure_logging(log, logfile)
+    click.echo(f"Writing logs to {logfile}")
     # For logging from the click commands
     ctx.obj['log'] = logging.getLogger(__name__)
     ctx.obj['cfg'] = configure.parse_configuration(configuration)

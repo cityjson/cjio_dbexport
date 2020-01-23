@@ -23,18 +23,17 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
-from logging import basicConfig, getLogger
-from sys import stdout
+import logging
 
-log = getLogger(__name__)
-
-
-def configure_logging(verbosity):
+def configure_logging(loglevel, logfile):
     """Configures the general logging in the application"""
-    log_level = max(10, 30 - 10 * verbosity)
-    basicConfig(
-        stream=stdout,
-        level=log_level,
+    numeric_level = getattr(logging, loglevel.upper(), None)
+    if not isinstance(numeric_level, int):
+        raise ValueError('Invalid log level: %s' % loglevel)
+    logging.basicConfig(
+        filename=logfile,
+        filemode='w',
+        level=numeric_level,
         format='%(asctime)s\t%(name)-24s\t%(lineno)s\t[%(levelname)-8s]\t%(message)s',
         datefmt='%Y-%m-%d %H:%M:%S'
     )
