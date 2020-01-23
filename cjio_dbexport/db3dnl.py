@@ -26,7 +26,7 @@ SOFTWARE.
 import logging
 import re
 from datetime import datetime
-from typing import Mapping, Iterable
+from typing import Mapping, Iterable, Tuple
 
 from click import ClickException
 from cjio import cityjson
@@ -244,7 +244,7 @@ def query_tiles_in_list(features, tile_index, tile_list):
 
 
 def with_list(conn: db.Db, tile_index: db.Schema,
-              tile_list: Iterable[str]) -> Iterable[str]:
+              tile_list: Tuple[str]) -> Iterable[str]:
     """Select tiles based on a list of tile IDs."""
     if 'all' == tile_list[0].lower():
         log.info("Getting all tiles from the index.")
@@ -261,8 +261,12 @@ def with_list(conn: db.Db, tile_index: db.Schema,
 
 
 def tiles_in_index(conn: db.Db, tile_index: db.Schema,
-                   tile_list: Iterable[str]) -> Iterable[str]:
+                   tile_list: Tuple[str]) -> Iterable[str]:
     """Return the tile IDs that are present in the tile index."""
+    if not isinstance(tile_list, tuple):
+        tile_list = tuple(tile_list)
+        log.debug(f"tile_list was not a tuple, casted to tuple {tile_list}")
+
     query_params = {
         'tiles': sql.Literal(tile_list),
         'index_': tile_index.schema + tile_index.table,

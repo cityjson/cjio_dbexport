@@ -28,6 +28,7 @@ import logging
 import sys
 from pathlib import Path
 from io import StringIO
+import json
 
 from psycopg2 import Error as pgError
 from psycopg2 import sql
@@ -101,6 +102,7 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
 
     DIR is the path to the output directory.
     """
+    log = ctx.obj['log']
     path = Path(dir).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
@@ -124,13 +126,31 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
     else:
         try:
             for tile in tile_list:
-                click.echo(f"Exporting tile {tile}")
-                filepath = (path / tile).with_suffix('.json')
-                cm = db3dnl.export(conn=conn,
-                                   cfg=ctx.obj['cfg'],
-                                   tile_list=(tile,))
-                cityjson.save(cm, path=filepath, indent=None)
-                click.echo(f"Saved CityJSON tile {tile} to {filepath}")
+                click.echo(f"Exporting tile {str(tile)}")
+                filepath = (path / str(tile)).with_suffix('.json')
+                try:
+                    cm = db3dnl.export(conn=conn,
+                                       cfg=ctx.obj['cfg'],
+                                       tile_list=(tile,))
+                except Exception as e:
+                    cm = None
+                    log.error(f"Failed to export tile {str(tile)}\n{e}")
+                if cm is not None:
+                    try:
+                        cm.remove_duplicate_vertices()
+                    except Exception as e:
+                        log.error(f"Failed to remove duplicate vertices\n{e}")
+                    try:
+                        cm.remove_orphan_vertices()
+                    except Exception as e:
+                        log.error(f"Failed to remove orphan vertices\n{e}")
+                    try:
+                        with open(filepath, 'w') as fout:
+                            json_str = json.dumps(cm.j, indent=None)
+                            fout.write(json_str)
+                    except IOError as e:
+                        log.error(f"Invalid output file: {filepath}\n{e}")
+                    click.echo(f"Saved CityJSON tile {str(tile)} to {filepath}")
         except Exception as e:
             raise click.exceptions.ClickException(e)
         finally:
