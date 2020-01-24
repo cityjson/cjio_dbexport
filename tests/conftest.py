@@ -74,6 +74,9 @@ def cfg_db3dnl_int(data_dir):
         c = configure.parse_configuration(fo)
         yield c
 
+@pytest.fixture(scope='function')
+def db3dnl_4tiles_pickle(data_dir):
+    yield data_dir / 'db3dnl_4tiles.pickle'
 
 @pytest.fixture('session')
 def db3dnl_db(cfg_parsed):

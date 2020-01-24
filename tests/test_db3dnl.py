@@ -5,6 +5,8 @@ import logging
 import pytest
 from pathlib import Path
 
+import pickle
+
 from cjio import cityjson
 import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, tiler,utils
@@ -51,11 +53,19 @@ class TestIntegration:
         print(cm.get_info())
         # assert cm.validate()
 
-    def test_export_tile_list(self, data_dir, cfg_parsed, db3dnl_db, caplog):
+    def test_export_tile_list(self, data_dir, cfg_parsed, db3dnl_db, caplog,
+                              db3dnl_4tiles_pickle):
         caplog.set_level(logging.DEBUG)
-        cm = db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
-                           tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
-        print(cm.get_info())
+        dbexport = list(db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
+                           tile_list=['gb2', 'ic1', 'ic2', 'ec4']))
+        with open(db3dnl_4tiles_pickle, 'wb') as fo:
+            pickle.dump(dbexport, fo)
+
+    def test_convert(self, data_dir, db3dnl_4tiles_pickle, caplog):
+        caplog.set_level(logging.DEBUG)
+        with open(db3dnl_4tiles_pickle, 'rb') as fo:
+            dbexport = pickle.load(fo)
+        cm = db3dnl.convert(dbexport)
 
     def test_export_extent(self, data_dir, cfg_parsed, db3dnl_db, caplog):
         caplog.set_level(logging.DEBUG)

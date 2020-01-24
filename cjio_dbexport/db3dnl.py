@@ -297,93 +297,6 @@ def all_in_index(conn: db.Db, tile_index: db.Schema) -> Iterable[str]:
     log.debug(conn.print_query(query))
     return [t[0] for t in conn.get_query(query)]
 
-
-def export(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
-           extent=None):
-    """Export a table to CityModel
-
-    :param conn:
-    :param cfg:
-    :param bbox:
-    :return: A citymodel of :py:class:`cityjson.CityJSON`
-    """
-    # Set EPSG
-    epsg = 7415
-    cm = cityjson.CityJSON()
-    tile_index = db.Schema(cfg['tile_index'])
-    for cotype, cotables in cfg['cityobject_type'].items():
-        for cotable in cotables:
-            log.info(f"CityObject {cotype} from table {cotable['table']}")
-            if cotype.lower() == 'building':
-                geomtype = 'Solid'
-            else:
-                # FIXME: because CompositeSurface is not supported at the moment for semantic surfaces in cjio.models
-                geomtype = 'MultiSurface'
-
-            features = db.Schema(cotable)
-
-            query = build_query(conn=conn, features=features,
-                                tile_index=tile_index, tile_list=tile_list,
-                                bbox=bbox, extent=extent)
-            try:
-                resultset = conn.get_dict(query)
-            except pgError as e:
-                log.error(f"{e.pgcode}\t{e.pgerror}")
-                raise ClickException(f"Could not query {cotable}. Check the "
-                                     f"logs for details.")
-
-            # Loop through the whole resultset and create the CityObjects
-            for record in resultset:
-                # I expect this order of fields:
-                #   0 - cityobject ID
-                #   1 - geometry
-                #   2 < attributes
-                co = CityObject(id=record['coid'])
-
-                # Parse the geometry
-                # TODO: refactor geometry parsing into a function
-                geom = Geometry(type=geomtype, lod=1)
-                if geomtype == 'Solid':
-                    solid = []
-                    outer_shell = []
-                    for wkt_polyz in record['geom']:
-                        surface = parse_polygonz(wkt_polyz)
-                        # OPTIMISE: make use of the generator down the line
-                        outer_shell.append(list(surface))
-                    solid.append(outer_shell)
-                    geom.boundaries = solid
-                elif geomtype == 'MultiSurface':
-                    outer_shell = []
-                    for wkt_polyz in record['geom']:
-                        surface = parse_polygonz(wkt_polyz)
-                        # OPTIMISE: make use of the generator down the line
-                        outer_shell.append(list(surface))
-                    geom.boundaries = outer_shell
-                co.geometry.append(geom)
-
-                # Parse attributes
-                for key, attr in record.items():
-                    if key != 'pk' and key != 'geom' and key != 'coid':
-                        if isinstance(attr, datetime):
-                            co.attributes[key] = attr.isoformat()
-                        else:
-                            co.attributes[key] = attr
-
-                # Set the CityObject type
-                co.type = cotype
-
-                # Add the CO to the CityModel
-                cm.cityobjects[co.id] = co
-
-    cityobjects, vertex_lookup = cm.reference_geometry()
-    cm.add_to_j(cityobjects, vertex_lookup)
-    cm.update_bbox()
-    cm.set_epsg(epsg)
-    log.info(f"Exported CityModel:\n{cm}")
-
-    return cm
-
-
 def parse_polygonz(wkt_polygonz):
     """Parses a POLYGON Z array of WKT into CityJSON Surface"""
     # match: 'POLYGON Z (<match everything in here>)'
@@ -399,3 +312,101 @@ def parse_polygonz(wkt_polygonz):
             yield pts[1:]  # WKT repeats the first vertex
     else:
         log.error("Not a POLYGON Z")
+
+def export(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
+           extent=None):
+    """Export a table from PostgreSQL
+
+    :param conn:
+    :param cfg:
+    :param bbox:
+    :return: A citymodel of :py:class:`cityjson.CityJSON`
+    """
+    # Need a thread per tile
+    tile_index = db.Schema(cfg['tile_index'])
+    for cotype, cotables in cfg['cityobject_type'].items():
+        # Need a thread for each of these
+        for cotable in cotables:
+            # Need a connection and thread for each of these
+            log.info(f"CityObject {cotype} from table {cotable['table']}")
+            features = db.Schema(cotable)
+            query = build_query(conn=conn, features=features,
+                                tile_index=tile_index, tile_list=tile_list,
+                                bbox=bbox, extent=extent)
+            try:
+                tabledata =  conn.get_dict(query)
+            except pgError as e:
+                log.error(f"{e.pgcode}\t{e.pgerror}")
+                raise ClickException(f"Could not query {cotable}. Check the "
+                                     f"logs for details.")
+            # Note that resultset can be []
+            yield (cotype,cotable['table']), tabledata
+
+def convert(dbexport):
+    """Convert the exported citymodel to CityJSON."""
+    # Set EPSG
+    epsg = 7415
+    cm = cityjson.CityJSON()
+    for coinfo, tabledata in dbexport:
+        cotype, cotable = coinfo
+        log.info(f"CityObject {cotype} from table {cotable}")
+        if cotype.lower() == 'building':
+            geomtype = 'Solid'
+        else:
+            # FIXME: because CompositeSurface is not supported at the moment for semantic surfaces in cjio.models
+            geomtype = 'MultiSurface'
+
+        # Loop through the whole resultset and create the CityObjects
+        for record in tabledata:
+            # I expect this order of fields:
+            #   0 - cityobject ID
+            #   1 - geometry
+            #   2 < attributes
+            co = CityObject(id=record['coid'])
+
+            # Parse the geometry
+            # TODO: refactor geometry parsing into a function
+            geom = Geometry(type=geomtype, lod=1)
+            if geomtype == 'Solid':
+                solid = []
+                outer_shell = []
+                for wkt_polyz in record['geom']:
+                    surface = parse_polygonz(wkt_polyz)
+                    # OPTIMISE: make use of the generator down the line
+                    outer_shell.append(list(surface))
+                solid.append(outer_shell)
+                geom.boundaries = solid
+            elif geomtype == 'MultiSurface':
+                outer_shell = []
+                for wkt_polyz in record['geom']:
+                    surface = parse_polygonz(wkt_polyz)
+                    # OPTIMISE: make use of the generator down the line
+                    outer_shell.append(list(surface))
+                geom.boundaries = outer_shell
+            co.geometry.append(geom)
+
+            # Parse attributes
+            for key, attr in record.items():
+                if key != 'pk' and key != 'geom' and key != 'coid':
+                    if isinstance(attr, datetime):
+                        co.attributes[key] = attr.isoformat()
+                    else:
+                        co.attributes[key] = attr
+
+            # Set the CityObject type
+            co.type = cotype
+
+            # Add the CO to the CityModel
+            cm.cityobjects[co.id] = co
+
+    cityobjects, vertex_lookup = cm.reference_geometry()
+    cm.add_to_j(cityobjects, vertex_lookup)
+    cm.update_bbox()
+    cm.set_epsg(epsg)
+    log.info(f"Exported CityModel:\n{cm}")
+
+    return cm
+
+def execute(cotypes):
+    resultset = export()
+    cm = convert(resultset=resultset, cotypes=cotypes)
