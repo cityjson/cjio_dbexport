@@ -27,6 +27,7 @@ import logging
 import re
 from datetime import datetime
 from typing import Mapping, Iterable, Tuple
+from itertools import chain
 
 from click import ClickException
 from cjio import cityjson
@@ -342,11 +343,52 @@ def export(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
             # Note that resultset can be []
             yield (cotype,cotable['table']), tabledata
 
-def convert(dbexport):
-    """Convert the exported citymodel to CityJSON."""
-    # Set EPSG
-    epsg = 7415
-    cm = cityjson.CityJSON()
+
+def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
+    """Converts a database record to a CityObject.
+
+    I expect this order of fields in the ``record``:
+        0 - cityobject ID
+        1 - geometry
+        2 < attributes
+    """
+    for record in tabledata:
+        coid = record['coid']
+        co = CityObject(id=coid)
+        # Parse the geometry
+        # TODO: refactor geometry parsing into a function
+        geom = Geometry(type=geomtype, lod=1)
+        if geomtype == 'Solid':
+            solid = []
+            outer_shell = []
+            for wkt_polyz in record['geom']:
+                surface = parse_polygonz(wkt_polyz)
+                # OPTIMISE: make use of the generator down the line
+                outer_shell.append(list(surface))
+            solid.append(outer_shell)
+            geom.boundaries = solid
+        elif geomtype == 'MultiSurface':
+            outer_shell = []
+            for wkt_polyz in record['geom']:
+                surface = parse_polygonz(wkt_polyz)
+                # OPTIMISE: make use of the generator down the line
+                outer_shell.append(list(surface))
+            geom.boundaries = outer_shell
+        co.geometry.append(geom)
+        # Parse attributes
+        for key, attr in record.items():
+            if key != 'pk' and key != 'geom' and key != 'coid':
+                if isinstance(attr, datetime):
+                    co.attributes[key] = attr.isoformat()
+                else:
+                    co.attributes[key] = attr
+        # Set the CityObject type
+        co.type = cotype
+
+        yield coid, co
+
+
+def dbexport_to_cityobjects(dbexport):
     for coinfo, tabledata in dbexport:
         cotype, cotable = coinfo
         log.info(f"CityObject {cotype} from table {cotable}")
@@ -356,57 +398,27 @@ def convert(dbexport):
             # FIXME: because CompositeSurface is not supported at the moment for semantic surfaces in cjio.models
             geomtype = 'MultiSurface'
 
-        # Loop through the whole resultset and create the CityObjects
-        for record in tabledata:
-            # I expect this order of fields:
-            #   0 - cityobject ID
-            #   1 - geometry
-            #   2 < attributes
-            co = CityObject(id=record['coid'])
+        # Loop through the whole tabledata and create the CityObjects
+        cityobject_generator = table_to_cityobjects(
+            tabledata=tabledata, cotype=cotype, geomtype=geomtype)
+        for coid, co in cityobject_generator:
+            yield coid, co
 
-            # Parse the geometry
-            # TODO: refactor geometry parsing into a function
-            geom = Geometry(type=geomtype, lod=1)
-            if geomtype == 'Solid':
-                solid = []
-                outer_shell = []
-                for wkt_polyz in record['geom']:
-                    surface = parse_polygonz(wkt_polyz)
-                    # OPTIMISE: make use of the generator down the line
-                    outer_shell.append(list(surface))
-                solid.append(outer_shell)
-                geom.boundaries = solid
-            elif geomtype == 'MultiSurface':
-                outer_shell = []
-                for wkt_polyz in record['geom']:
-                    surface = parse_polygonz(wkt_polyz)
-                    # OPTIMISE: make use of the generator down the line
-                    outer_shell.append(list(surface))
-                geom.boundaries = outer_shell
-            co.geometry.append(geom)
 
-            # Parse attributes
-            for key, attr in record.items():
-                if key != 'pk' and key != 'geom' and key != 'coid':
-                    if isinstance(attr, datetime):
-                        co.attributes[key] = attr.isoformat()
-                    else:
-                        co.attributes[key] = attr
-
-            # Set the CityObject type
-            co.type = cotype
-
-            # Add the CO to the CityModel
-            cm.cityobjects[co.id] = co
-
+def convert(dbexport):
+    """Convert the exported citymodel to CityJSON."""
+    # Set EPSG
+    epsg = 7415
+    cm = cityjson.CityJSON()
+    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport))
     cityobjects, vertex_lookup = cm.reference_geometry()
     cm.add_to_j(cityobjects, vertex_lookup)
     cm.update_bbox()
     cm.set_epsg(epsg)
     log.info(f"Exported CityModel:\n{cm}")
-
     return cm
 
+
 def execute(cotypes):
-    resultset = export()
-    cm = convert(resultset=resultset, cotypes=cotypes)
+    dbexport = export()
+    cm = convert(dbexport)

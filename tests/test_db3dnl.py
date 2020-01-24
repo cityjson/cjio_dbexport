@@ -66,6 +66,7 @@ class TestIntegration:
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
         cm = db3dnl.convert(dbexport)
+        cm.get_info()
 
     def test_export_extent(self, data_dir, cfg_parsed, db3dnl_db, caplog):
         caplog.set_level(logging.DEBUG)
