@@ -41,21 +41,25 @@ class Db(object):
     :raise: :class:`psycopg2.OperationalError`
     """
 
-    def __init__(self, dbname, host, port, user, password=None):
-        self.dbname = dbname
-        self.host = host
-        self.port = port
-        self.user = user
-        self.password = password
-        try:
-            self.conn = psycopg2.connect(
-                dbname=dbname, host=host, port=port, user=user,
-                password=password
-            )
-            log.info(f"Opened connection to {self.conn.get_dsn_parameters()}")
-        except psycopg2.OperationalError:
-            log.exception("I'm unable to connect to the database")
-            raise
+    def __init__(self, conn=None, dbname=None, host=None, port=None,
+                 user=None, password=None):
+        if conn is None:
+            self.dbname = dbname
+            self.host = host
+            self.port = port
+            self.user = user
+            self.password = password
+            try:
+                self.conn = psycopg2.connect(
+                    dbname=dbname, host=host, port=port, user=user,
+                    password=password
+                )
+                log.info(f"Opened connection to {self.conn.get_dsn_parameters()}")
+            except psycopg2.OperationalError:
+                log.exception("I'm unable to connect to the database")
+                raise
+        else:
+            self.conn = conn
 
     def send_query(self, query: psycopg2.sql.Composable):
         """Send a query to the DB when no results need to return (e.g. CREATE).

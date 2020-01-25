@@ -56,8 +56,13 @@ class TestIntegration:
     def test_export_tile_list(self, data_dir, cfg_parsed, db3dnl_db, caplog,
                               db3dnl_4tiles_pickle):
         caplog.set_level(logging.DEBUG)
-        dbexport = list(db3dnl.export(conn=db3dnl_db, cfg=cfg_parsed,
-                           tile_list=['gb2', 'ic1', 'ic2', 'ec4']))
+        export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
+                                   tile_index=db.Schema(
+                                       cfg_parsed['tile_index']),
+                                   cityobject_type=cfg_parsed[
+                                       'cityobject_type'],
+                                   tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+        dbexport = list(export_gen)
         with open(db3dnl_4tiles_pickle, 'wb') as fo:
             pickle.dump(dbexport, fo)
 
