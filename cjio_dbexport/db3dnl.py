@@ -317,7 +317,7 @@ def parse_polygonz(wkt_polygonz):
 def export(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
            threads=None,
            tile_list=None, bbox=None, extent=None):
-    """Export a table from PostgreSQL."""
+    """Export a table from PostgreSQL. Multithreading, with connection pooling."""
     # see: https://realpython.com/intro-to-python-threading/
     # see: https://stackoverflow.com/a/39310039
     # Need one thread per table
@@ -325,7 +325,7 @@ def export(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
         threads = sum(len(cotables) for cotables in cityobject_type.values())
     log.debug(f"Number of threads={threads}")
     conn_pool = pool.ThreadedConnectionPool(minconn=1,
-                                            maxconn=threads+1,
+                                            maxconn=threads,
                                             **conn_cfg)
     try:
         with ThreadPoolExecutor(max_workers=threads) as executor:
@@ -346,8 +346,10 @@ def export(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
                     # Future together with the cotype and table name
                     future = executor.submit(conn.get_dict, query)
                     future_to_table[future] = (cotype, tablename)
-                    conn_pool.putconn(conn=conn.conn, key=(cotype, tablename),
-                                      close=False)
+                    # If I put away the connection here, then it locks the main
+                    # thread and it becomes like using a single connection.
+                    # conn_pool.putconn(conn=conn.conn, key=(cotype, tablename),
+                    #                   close=True)
             for future in as_completed(future_to_table):
                 cotype, tablename = future_to_table[future]
                 try:
@@ -360,6 +362,76 @@ def export(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
     finally:
         conn_pool.closeall()
 
+### start Multithreading optimisation tests ---
+
+def _export_no_pool(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
+           threads=None,
+           tile_list=None, bbox=None, extent=None):
+    """Export a table from PostgreSQL. Multithreading, without connection pooling."""
+    # see: https://realpython.com/intro-to-python-threading/
+    # see: https://stackoverflow.com/a/39310039
+    # Need one thread per table
+    if threads is None:
+        threads = sum(len(cotables) for cotables in cityobject_type.values())
+    log.debug(f"Number of threads={threads}")
+    conn = db.Db(**conn_cfg)
+    try:
+        with ThreadPoolExecutor(max_workers=threads) as executor:
+            future_to_table = {}
+            for cotype, cotables in cityobject_type.items():
+                # Need a thread for each of these
+                for cotable in cotables:
+                    tablename = cotable['table']
+                    # Need a connection from the pool per thread
+                    # conn = db.Db(conn=conn_pool.getconn(key=(cotype, tablename)))
+                    # Need a connection and thread for each of these
+                    log.info(f"CityObject {cotype} from table {cotable['table']}")
+                    features = db.Schema(cotable)
+                    query = build_query(conn=conn, features=features,
+                                        tile_index=tile_index, tile_list=tile_list,
+                                        bbox=bbox, extent=extent)
+                    # Schedule the DB query for execution and store the returned
+                    # Future together with the cotype and table name
+                    future = executor.submit(conn.get_dict, query)
+                    future_to_table[future] = (cotype, tablename)
+                    # conn_pool.putconn(conn=conn.conn, key=(cotype, tablename),
+                    #                   close=False)
+            for future in as_completed(future_to_table):
+                cotype, tablename = future_to_table[future]
+                try:
+                    # Note that resultset can be []
+                    yield (cotype, cotable['table']), future.result()
+                except pgError as e:
+                    log.error(f"{e.pgcode}\t{e.pgerror}")
+                    raise ClickException(f"Could not query {cotable}. Check the "
+                                         f"logs for details.")
+    finally:
+        conn.close()
+
+def _export_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
+           extent=None):
+    """Export a table from PostgreSQL. Single thread, single connection."""
+    # Need a thread per tile
+    tile_index = db.Schema(cfg['tile_index'])
+    for cotype, cotables in cfg['cityobject_type'].items():
+        # Need a thread for each of these
+        for cotable in cotables:
+            # Need a connection and thread for each of these
+            log.info(f"CityObject {cotype} from table {cotable['table']}")
+            features = db.Schema(cotable)
+            query = build_query(conn=conn, features=features,
+                                tile_index=tile_index, tile_list=tile_list,
+                                bbox=bbox, extent=extent)
+            try:
+                tabledata =  conn.get_dict(query)
+            except pgError as e:
+                log.error(f"{e.pgcode}\t{e.pgerror}")
+                raise ClickException(f"Could not query {cotable}. Check the "
+                                     f"logs for details.")
+            # Note that resultset can be []
+            yield (cotype,cotable['table']), tabledata
+
+### end Multithreading optimisation test ---
 
 def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
     """Converts a database record to a CityObject.
