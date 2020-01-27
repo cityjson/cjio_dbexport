@@ -44,12 +44,6 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
     """Build an SQL query for extracting CityObjects from a single table.
 
     ..todo: make EPSG a parameter
-
-    :param conn:
-    :param cfg:
-    :param features:
-    :param bbox:
-    :return:
     """
     # Set EPSG
     epsg = 7415
@@ -67,20 +61,21 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
     # polygons subquery
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
-        polygons_sub = query_bbox(features, bbox, epsg)
+        polygons_sub, attr_where, extent_sub = query_bbox(features, bbox, epsg)
     elif tile_list:
         log.info(f"Exporting with a list of tiles {tile_list}")
-        polygons_sub = query_tiles_in_list(features=features,
-                                           tile_index=tile_index,
-                                           tile_list=tile_list)
+        polygons_sub, attr_where, extent_sub = query_tiles_in_list(
+            features=features,
+            tile_index=tile_index,
+            tile_list=tile_list)
     elif extent:
         log.info(f"Exporting with polygon extent")
         ewkt = utils.to_ewkt(polygon=extent, srid=epsg)
-        polygons_sub = query_extent(features=features,
-                                    ewkt=ewkt)
+        polygons_sub, attr_where, extent_sub = query_extent(features=features,
+                                                            ewkt=ewkt)
     else:
         log.info(f"Exporting the whole database")
-        polygons_sub = query_all(features)
+        polygons_sub, attr_where, extent_sub = query_all(features)
 
     # Main query
     query_params = {
@@ -89,36 +84,64 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
         'geometry': features.field.geometry.sqlid,
         'tbl': features.schema + features.table,
         'attr': attr_select,
-        'polygons': polygons_sub
+        'where_instersects': attr_where,
+        'polygons': polygons_sub,
+        'extent': extent_sub,
     }
 
+
     query = sql.SQL("""
-    WITH attrs AS (
-        SELECT
-            {pk} pk,
-            {attr}
-        FROM
-            {tbl}
-    ),
-    {polygons},
-    boundary AS (
-        SELECT
-            pk,
-            ARRAY_AGG(ST_ASTEXT(geom)) geom,
-            coid
-        FROM
-            polygons
-        GROUP BY
-            pk, coid
-    )
-    SELECT
-        b.pk,
-        b.geom,
-        b.coid,
-        a.*
-    FROM
-        boundary b
-    INNER JOIN attrs a ON
+    WITH
+         {extent}
+         attr_in_extent AS (
+         SELECT {pk} pk,
+                {coid} coid,
+                {attr}
+         FROM {tbl} a
+         {where_instersects}),
+         {polygons},
+         expand_points AS (
+             SELECT pk,
+                    (geom).PATH[1]         exterior,
+                    (geom).PATH[2]         interior,
+                    (geom).PATH[3]         vertex,
+                    ARRAY [ST_X((geom).geom),
+                        ST_Y((geom).geom),
+                        ST_Z((geom).geom)] point
+             FROM polygons
+             WHERE (geom).PATH[3] > 1
+             ORDER BY pk,
+                      exterior,
+                      interior,
+                      vertex),
+         rings AS (
+             SELECT pk,
+                    exterior,
+                    interior,
+                    ARRAY_AGG(point) geom
+             FROM expand_points
+             GROUP BY interior,
+                      exterior,
+                      pk
+             ORDER BY exterior,
+                      interior),
+         surfaces AS (
+             SELECT pk,
+                    ARRAY_AGG(geom) geom
+             FROM rings
+             GROUP BY exterior,
+                      pk
+             ORDER BY exterior),
+         multisurfaces AS (
+             SELECT pk,
+                    ARRAY_AGG(geom) geom
+             FROM surfaces
+             GROUP BY pk)
+    SELECT b.pk,
+           b.geom,
+           a.*
+    FROM multisurfaces b
+             INNER JOIN attr_in_extent a ON
         b.pk = a.pk;
     """).format(**query_params)
     log.debug(conn.print_query(query))
@@ -133,16 +156,18 @@ def query_all(features):
         'geometry': features.field.geometry.sqlid,
         'tbl': features.schema + features.table
     }
-    return sql.SQL("""
+    sql_polygons =  sql.SQL("""
     polygons AS (
         SELECT
-            {pk} pk,
-            (ST_Dump({geometry})).geom,
-            {coid} coid
-        FROM
+            {pk}                      pk,
+            ST_DumpPoints({geometry}) geom
+        FROM 
             {tbl}
     )
     """).format(**query_params)
+    sql_where_attr_intersects = sql.SQL("")
+    sql_extent = sql.SQL("")
+    return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
 def query_bbox(features, bbox, epsg):
@@ -159,12 +184,10 @@ def query_bbox(features, bbox, epsg):
         'ymax': sql.Literal(bbox[3]),
         'tbl': features.schema + features.table
     }
-    return sql.SQL("""
+    sql_polygons = sql.SQL("""
     polygons AS (
-        SELECT
-            {pk} pk,
-            (ST_Dump({geometry})).geom,
-            {coid} coid
+        SELECT {pk}                      pk,
+               ST_DumpPoints({geometry}) geom
         FROM
             {tbl}
         WHERE ST_Intersects(
@@ -173,6 +196,14 @@ def query_bbox(features, bbox, epsg):
             )
     )
     """).format(**query_params)
+    sql_where_attr_intersects = sql.SQL("""
+    WHERE ST_Intersects(
+        a.{geometry},
+        ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
+        )
+    """).format(**query_params)
+    sql_extent = sql.SQL("")
+    return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
 def query_extent(features, ewkt):
@@ -184,12 +215,11 @@ def query_extent(features, ewkt):
         'tbl': features.schema + features.table,
         'poly': sql.Literal(ewkt),
     }
-    return sql.SQL("""
+    sql_polygons = sql.SQL("""
     polygons AS (
         SELECT
-            {pk} pk,
-            (ST_Dump({geometry})).geom,
-            {coid} coid
+            {pk}                      pk,
+            ST_DumpPoints({geometry}) geom
         FROM
             {tbl}
         WHERE ST_Intersects(
@@ -198,6 +228,14 @@ def query_extent(features, ewkt):
             )
     )
     """).format(**query_params)
+    sql_where_attr_intersects = sql.SQL("""
+    WHERE ST_Intersects(
+        a.{geometry},
+        {poly}
+        )
+    """).format(**query_params)
+    sql_extent = sql.SQL("")
+    return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
 def query_tiles_in_list(features, tile_index, tile_list):
@@ -213,34 +251,28 @@ def query_tiles_in_list(features, tile_index, tile_list):
         'tx_pk': tile_index.field.pk.sqlid,
         'tile_list': sql.Literal(tl_tup)
     }
-    return sql.SQL("""
+    sql_extent = sql.SQL("""
     extent AS (
-        SELECT
-            st_union({tx_geom}) geom
-        FROM
-            {tile_index}
-        WHERE
-            {tx_pk} IN {tile_list}
-    ),
-    sub AS (
-        SELECT
-            a.*
-        FROM
-            {tbl} a,
-            extent t
-        WHERE
-            st_intersects(t.geom,
-            a.{tbl_geom})
-    ),
-    polygons AS (
-        SELECT
-            {tbl_pk} pk,
-            (ST_Dump({tbl_geom})).geom,
-            {tbl_coid} coid
-        FROM
-            sub
-    )
+        SELECT ST_Union({tx_geom}) geom
+        FROM {tile_index}
+        WHERE {tx_pk} IN {tile_list}),
     """).format(**query_params)
+    sql_polygon = sql.SQL("""
+    geom_in_extent AS (
+        SELECT a.*
+        FROM {tbl} a,
+            extent t
+        WHERE ST_Intersects(t.geom,
+                            a.{tbl_geom})),
+    polygons AS (
+        SELECT {tbl_pk}                  pk,
+            ST_DumpPoints({tbl_geom}) geom
+        FROM geom_in_extent b)
+    """).format(**query_params)
+    sql_where_attr_intersects = sql.SQL("""
+    ,extent t WHERE ST_Intersects(t.geom, a.{tbl_geom})
+    """).format(**query_params)
+    return sql_polygon, sql_where_attr_intersects, sql_extent
 
 
 def with_list(conn: db.Db, tile_index: db.Schema,
@@ -434,13 +466,7 @@ def _export_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
 ### end Multithreading optimisation test ---
 
 def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
-    """Converts a database record to a CityObject.
-
-    I expect this order of fields in the ``record``:
-        0 - cityobject ID
-        1 - geometry
-        2 < attributes
-    """
+    """Converts a database record to a CityObject."""
     for record in tabledata:
         coid = record['coid']
         co = CityObject(id=coid)
@@ -448,21 +474,10 @@ def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
         # TODO: refactor geometry parsing into a function
         geom = Geometry(type=geomtype, lod=1)
         if geomtype == 'Solid':
-            solid = []
-            outer_shell = []
-            for wkt_polyz in record['geom']:
-                surface = parse_polygonz(wkt_polyz)
-                # OPTIMISE: make use of the generator down the line
-                outer_shell.append(list(surface))
-            solid.append(outer_shell)
+            solid = [record['geom'],]
             geom.boundaries = solid
         elif geomtype == 'MultiSurface':
-            outer_shell = []
-            for wkt_polyz in record['geom']:
-                surface = parse_polygonz(wkt_polyz)
-                # OPTIMISE: make use of the generator down the line
-                outer_shell.append(list(surface))
-            geom.boundaries = outer_shell
+            geom.boundaries = record['geom']
         co.geometry.append(geom)
         # Parse attributes
         for key, attr in record.items():
@@ -473,14 +488,13 @@ def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
                     co.attributes[key] = attr
         # Set the CityObject type
         co.type = cotype
-
         yield coid, co
 
 
 def dbexport_to_cityobjects(dbexport):
     for coinfo, tabledata in dbexport:
         cotype, cotable = coinfo
-        log.info(f"CityObject {cotype} from table {cotable}")
+        log.info(f"Generating CityObject {cotype} from table {cotable}")
         if cotype.lower() == 'building':
             geomtype = 'Solid'
         else:

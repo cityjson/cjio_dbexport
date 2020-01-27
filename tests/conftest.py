@@ -3,7 +3,7 @@
 """pytest configuration"""
 
 
-import os
+import pickle
 from pathlib import Path
 import pytest
 
@@ -73,6 +73,11 @@ def cfg_db3dnl_int(data_dir):
     with open(config, 'r') as fo:
         c = configure.parse_configuration(fo)
         yield c
+
+@pytest.fixture(scope='function')
+def db3dnl_poly(data_dir):
+    with open(data_dir / 'db3dnl_poly.pickle', 'rb') as fo:
+        yield pickle.load(fo)
 
 @pytest.fixture(scope='function')
 def db3dnl_4tiles_pickle(data_dir):
