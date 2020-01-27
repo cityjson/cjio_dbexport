@@ -27,7 +27,7 @@ import logging
 import re
 from datetime import datetime
 from typing import Mapping, Iterable, Tuple
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
 
 from click import ClickException
 from cjio import cityjson
@@ -498,7 +498,8 @@ def dbexport_to_cityobjects(dbexport):
         if cotype.lower() == 'building':
             geomtype = 'Solid'
         else:
-            # FIXME: because CompositeSurface is not supported at the moment for semantic surfaces in cjio.models
+            # FIXME: because CompositeSurface is not supported at the moment
+            #  for semantic surfaces in cjio.models
             geomtype = 'MultiSurface'
 
         # Loop through the whole tabledata and create the CityObjects

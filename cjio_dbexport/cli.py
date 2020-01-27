@@ -113,9 +113,12 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
         filepath = (path / 'merged').with_suffix('.json')
         try:
             click.echo(f"Exporting merged tiles {tiles}")
-            cm = db3dnl.export(conn=conn,
-                               cfg=ctx.obj['cfg'],
-                               tile_list=tile_list)
+            dbexport = db3dnl.export(
+                conn_cfg=ctx.obj['cfg']['database'],
+                tile_index=tile_index,
+                cityobject_type=ctx.obj['cfg']['cityobject_type'],
+                tile_list=tile_list)
+            cm = db3dnl.convert(dbexport)
             cityjson.save(cm, path=filepath, indent=None)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except Exception as e:
@@ -128,9 +131,12 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
                 click.echo(f"Exporting tile {str(tile)}")
                 filepath = (path / str(tile)).with_suffix('.json')
                 try:
-                    cm = db3dnl.export(conn=conn,
-                                       cfg=ctx.obj['cfg'],
-                                       tile_list=(tile,))
+                    dbexport = db3dnl.export(
+                        conn_cfg=ctx.obj['cfg']['database'],
+                        tile_index=tile_index,
+                        cityobject_type=ctx.obj['cfg']['cityobject_type'],
+                        tile_list=(tile,))
+                    cm = db3dnl.convert(dbexport)
                 except Exception as e:
                     cm = None
                     log.error(f"Failed to export tile {str(tile)}\n{e}")

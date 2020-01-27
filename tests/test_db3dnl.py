@@ -3,8 +3,7 @@
 
 import logging
 import pickle
-
-import pytest
+import json
 
 import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, utils
@@ -113,6 +112,16 @@ class TestIntegration:
         with open(db3dnl_4tiles_pickle, 'wb') as fo:
             pickle.dump(dbexport, fo)
 
+    def test_export_tile_list_one(self, data_dir, cfg_parsed, db3dnl_db,
+                              db3dnl_4tiles_pickle):
+        export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
+                                   tile_index=db.Schema(
+                                       cfg_parsed['tile_index']),
+                                   cityobject_type=cfg_parsed[
+                                       'cityobject_type'],
+                                   tile_list=['gb2',])
+        dbexport = list(export_gen)
+
     def test_export_no_pool_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
                                       caplog,
                                       db3dnl_4tiles_pickle):
@@ -151,7 +160,7 @@ class TestIntegration:
                                      cfg_parsed['tile_index']),
                                  cityobject_type=cfg_parsed[
                                      'cityobject_type'],
-                                 tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+                                 tile_list=['gb2', ])
         cm = db3dnl.convert(dbexport)
         cm.get_info()
 
@@ -171,9 +180,36 @@ class TestIntegration:
         dir = str(data_dir)
         tiles = ('1', '2')
 
-    def test_export_tiles_int_list_cmd(self, cfg_db3dnl_int, data_dir,
-                                       merge=False):
+    def test_export_tiles_int_list_cmd(self, db3dnl_db, cfg_db3dnl_int, data_dir):
         """Test when the tile_index ID is an integer in the database, not a
         string AND the tiles are a list, not a tuple."""
-        dir = str(data_dir)
-        tiles = ['1', '2']
+        tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
+        tile_list = db3dnl.with_list(conn=db3dnl_db, tile_index=tile_index,
+                                     tile_list=('all',))
+        for tile in tile_list:
+            filepath = (data_dir / str(tile)).with_suffix('.json')
+            try:
+                dbexport = db3dnl.export(
+                    conn_cfg=cfg_db3dnl_int['database'],
+                    tile_index=tile_index,
+                    cityobject_type=cfg_db3dnl_int['cityobject_type'],
+                    tile_list=(tile,))
+                cm = db3dnl.convert(dbexport)
+            except Exception as e:
+                cm = None
+                log.error(f"Failed to export tile {str(tile)}\n{e}")
+            if cm is not None:
+                try:
+                    cm.remove_duplicate_vertices()
+                except Exception as e:
+                    log.error(f"Failed to remove duplicate vertices\n{e}")
+                try:
+                    cm.remove_orphan_vertices()
+                except Exception as e:
+                    log.error(f"Failed to remove orphan vertices\n{e}")
+                try:
+                    with open(filepath, 'w') as fout:
+                        json_str = json.dumps(cm.j, indent=None)
+                        fout.write(json_str)
+                except IOError as e:
+                    log.error(f"Invalid output file: {filepath}\n{e}")
