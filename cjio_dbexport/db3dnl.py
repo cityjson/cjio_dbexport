@@ -27,7 +27,8 @@ import logging
 import re
 from datetime import datetime
 from typing import Mapping, Iterable, Tuple
-from concurrent.futures import ThreadPoolExecutor, ProcessPoolExecutor, as_completed
+from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 
 from click import ClickException
 from cjio import cityjson
@@ -346,7 +347,7 @@ def parse_polygonz(wkt_polygonz):
         log.error("Not a POLYGON Z")
 
 
-def export(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
+def export(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
            threads=None,
            tile_list=None, bbox=None, extent=None):
     """Export a table from PostgreSQL. Multithreading, with connection pooling."""
@@ -371,8 +372,9 @@ def export(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
                     # Need a connection and thread for each of these
                     log.info(f"CityObject {cotype} from table {cotable['table']}")
                     features = db.Schema(cotable)
+                    tx = db.Schema(tile_index)
                     query = build_query(conn=conn, features=features,
-                                        tile_index=tile_index, tile_list=tile_list,
+                                        tile_index=tx, tile_list=tile_list,
                                         bbox=bbox, extent=extent)
                     # Schedule the DB query for execution and store the returned
                     # Future together with the cotype and table name
@@ -523,6 +525,40 @@ def convert(dbexport):
     return cm
 
 
-def execute(cotypes):
-    dbexport = export()
-    cm = convert(dbexport)
+def _to_citymodel(filepath, dbexport) -> Tuple:
+    try:
+        cm = convert(dbexport)
+    except BaseException as e:
+        log.error(f"Failed to convert export to CityJSON\n{e}")
+        return filepath, None
+    if cm:
+        try:
+            cm.remove_duplicate_vertices()
+        except BaseException as e:
+            log.error(f"Failed to remove duplicate vertices\n{e}")
+            return filepath, None
+        try:
+            cm.remove_orphan_vertices()
+        except BaseException as e:
+            log.error(f"Failed to remove orphan vertices\n{e}")
+            return None, None
+        return filepath, cm
+
+def to_citymodel(dbexport):
+    try:
+        cm = convert(dbexport)
+    except BaseException as e:
+        log.error(f"Failed to convert export to CityJSON\n{e}")
+        return None
+    if cm:
+        try:
+            cm.remove_duplicate_vertices()
+        except BaseException as e:
+            log.error(f"Failed to remove duplicate vertices\n{e}")
+            return None
+        try:
+            cm.remove_orphan_vertices()
+        except BaseException as e:
+            log.error(f"Failed to remove orphan vertices\n{e}")
+            return None
+        return cm

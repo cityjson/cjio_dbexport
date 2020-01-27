@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 from io import StringIO
 import json
+from concurrent.futures import ThreadPoolExecutor, as_completed
 
 from psycopg2 import Error as pgError
 from psycopg2 import sql
@@ -91,9 +92,11 @@ def export_all_cmd(ctx, filename):
 @click.argument('tiles', nargs=-1, type=str)
 @click.option('--merge', is_flag=True,
               help='Merge the requested tiles into a single file')
+@click.option('--threads', type=int,
+              help='Merge the requested tiles into a single file')
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, dir):
+def export_tiles_cmd(ctx, tiles, merge, threads, dir):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
@@ -107,59 +110,67 @@ def export_tiles_cmd(ctx, tiles, merge, dir):
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
     tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
-    tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
-                                 tile_list=tiles)
+    try:
+        tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
+                                     tile_list=tiles)
+        click.echo(f"Found {len(tile_list)} tiles in the tile index.")
+    except BaseException as e:
+        raise click.ClickException(f"Could not generate tile_list. Check the "
+                                   f"logs for details.\n{e}")
+    finally:
+        conn.close()
+
     if merge:
         filepath = (path / 'merged').with_suffix('.json')
         try:
             click.echo(f"Exporting merged tiles {tiles}")
             dbexport = db3dnl.export(
                 conn_cfg=ctx.obj['cfg']['database'],
-                tile_index=tile_index,
+                tile_index=ctx.obj['cfg']['tile_index'],
                 cityobject_type=ctx.obj['cfg']['cityobject_type'],
                 tile_list=tile_list)
             cm = db3dnl.convert(dbexport)
             cityjson.save(cm, path=filepath, indent=None)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
-        except Exception as e:
-            raise click.exceptions.ClickException(e)
-        finally:
-            conn.close()
+        except BaseException as e:
+            raise click.ClickException(e)
     else:
-        try:
+        click.echo(f"Exporting {len(tile_list)} tiles...")
+        with ThreadPoolExecutor(max_workers=threads) as executor:
+            future_to_export = {}
+            failed = []
             for tile in tile_list:
-                click.echo(f"Exporting tile {str(tile)}")
                 filepath = (path / str(tile)).with_suffix('.json')
                 try:
                     dbexport = db3dnl.export(
                         conn_cfg=ctx.obj['cfg']['database'],
-                        tile_index=tile_index,
+                        tile_index=ctx.obj['cfg']['tile_index'],
                         cityobject_type=ctx.obj['cfg']['cityobject_type'],
                         tile_list=(tile,))
-                    cm = db3dnl.convert(dbexport)
-                except Exception as e:
-                    cm = None
+                except BaseException as e:
                     log.error(f"Failed to export tile {str(tile)}\n{e}")
+                future = executor.submit(db3dnl.to_citymodel, dbexport)
+                future_to_export[future] = filepath
+            for i,future in enumerate(as_completed(future_to_export)):
+                filepath = future_to_export[future]
+                cm = future.result()
                 if cm is not None:
-                    try:
-                        cm.remove_duplicate_vertices()
-                    except Exception as e:
-                        log.error(f"Failed to remove duplicate vertices\n{e}")
-                    try:
-                        cm.remove_orphan_vertices()
-                    except Exception as e:
-                        log.error(f"Failed to remove orphan vertices\n{e}")
                     try:
                         with open(filepath, 'w') as fout:
                             json_str = json.dumps(cm.j, indent=None)
                             fout.write(json_str)
+                        click.echo(f"[{i+1}/{len(tile_list)}] Saved CityJSON to {filepath}")
                     except IOError as e:
                         log.error(f"Invalid output file: {filepath}\n{e}")
-                    click.echo(f"Saved CityJSON tile {str(tile)} to {filepath}")
-        except Exception as e:
-            raise click.exceptions.ClickException(e)
-        finally:
-            conn.close()
+                        failed.append(filepath.stem)
+                else:
+                    click.echo(f"Failed to create CityJSON from {filepath.stem},"
+                               f" check the logs for details.")
+                    failed.append(filepath.stem)
+                del future_to_export[future]
+                del cm
+        click.echo(f"Done. Exported {len(tile_list) - len(failed)} tiles. "
+                   f"Failed {len(failed)} tiles: {failed}")
 
 
 @click.command('export_bbox')

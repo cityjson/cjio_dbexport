@@ -4,6 +4,8 @@
 import logging
 import pickle
 import json
+import multiprocessing as mp
+from concurrent.futures import ProcessPoolExecutor, as_completed, ThreadPoolExecutor
 
 import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, utils
@@ -151,6 +153,8 @@ class TestIntegration:
             dbexport = pickle.load(fo)
         cm = db3dnl.convert(dbexport)
         cm.get_info()
+        with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
+            pickle.dump(cm, fo)
 
     def test_export_convert(self, data_dir, cfg_parsed, db3dnl_db,
                             caplog):
@@ -172,6 +176,11 @@ class TestIntegration:
                                                   hspacing=tilesize[0],
                                                   vspacing=tilesize[1])
         log.info(f"Nr. of tiles={len(grid)}")
+
+    def test_save(self, data_dir):
+        with open(data_dir / '4tiles_cm.pickle', 'rb') as fo:
+            cm = pickle.load(fo)
+        db3dnl.save(cm, (data_dir / '4tiles_test').with_suffix('.json'))
 
     def test_export_tiles_int_cmd(self, cfg_db3dnl_int, data_dir,
                                   merge=False):
@@ -213,3 +222,48 @@ class TestIntegration:
                         fout.write(json_str)
                 except IOError as e:
                     log.error(f"Invalid output file: {filepath}\n{e}")
+
+
+    def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int, data_dir):
+        """Test when the tile_index ID is an integer in the database, not a
+        string AND the tiles are a list, not a tuple."""
+        tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
+        tile_list = db3dnl.with_list(conn=db3dnl_db, tile_index=tile_index,
+                                     tile_list=('all',))
+
+        with ThreadPoolExecutor(max_workers=8) as executor:
+            future_to_export = {}
+            failed = []
+            for tile in tile_list:
+                filepath = (data_dir / str(tile)).with_suffix('.json')
+                try:
+                    log.info(f"Exporting tile {str(tile)} from the database")
+                    dbexport = db3dnl.export(
+                        conn_cfg=cfg_db3dnl_int['database'],
+                        tile_index=cfg_db3dnl_int['tile_index'],
+                        cityobject_type=cfg_db3dnl_int['cityobject_type'],
+                        tile_list=(tile,))
+                except BaseException as e:
+                    log.error(f"Failed to export tile {str(tile)}\n{e}")
+                log.debug("Submitting process...")
+                future = executor.submit(db3dnl.to_citymodel, dbexport)
+                future_to_export[future] = filepath
+            for i,future in enumerate(as_completed(future_to_export)):
+                filepath = future_to_export[future]
+                cm = future.result()
+                if cm is not None:
+                    try:
+                        with open(filepath, 'w') as fout:
+                            json_str = json.dumps(cm.j, indent=None)
+                            fout.write(json_str)
+                        log.info(f"[{i+1}/{len(tile_list)}] Saved CityModel to {filepath}")
+                    except IOError as e:
+                        log.error(f"Invalid output file: {filepath}\n{e}")
+                        failed.append(filepath.stem)
+                else:
+                    log.info(f"Failed to create CityJSON from {filepath.stem}")
+                    failed.append(filepath.stem)
+                del future_to_export[future]
+                del cm
+        log.info(f"Done. Exported {len(tile_list) - len(failed)} tiles. "
+                   f"Failed {len(failed)} tiles: {failed}")
