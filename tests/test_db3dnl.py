@@ -4,8 +4,9 @@
 import logging
 import pickle
 import json
-import multiprocessing as mp
-from concurrent.futures import ProcessPoolExecutor, as_completed, ThreadPoolExecutor
+from concurrent.futures import as_completed, ThreadPoolExecutor
+
+import pytest
 
 import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, utils
@@ -13,7 +14,7 @@ from cjio_dbexport import db3dnl, db, utils
 log = logging.getLogger(__name__)
 
 
-# @pytest.mark.db3dnl
+@pytest.mark.db3dnl
 class TestParsing:
     def test_parse_boundary(self):
         resultset = (1, [
@@ -70,7 +71,7 @@ class TestParsing:
         assert 'Exporting with a list of tiles' in caplog.text
 
 
-# @pytest.mark.db3dnl
+@pytest.mark.db3dnl
 class TestIntegration:
     """Integration tests"""
 

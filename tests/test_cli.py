@@ -2,7 +2,6 @@
 """Tests for `cjio_dbexport` package."""
 
 import pytest
-from pathlib import Path
 import logging
 
 log = logging.getLogger(__name__)
@@ -22,7 +21,7 @@ def test_command_line_interface():
     assert help_result.exit_code == 0
     assert 'Export tool from PostGIS to CityJSON' in help_result.output
 
-# @pytest.mark.db3dnl
+@pytest.mark.db3dnl
 class TestDb3DNLIntegration:
     def test_export_tiles(self, data_dir, cfg_db3dnl_path, capsys):
         """Test the CLI."""

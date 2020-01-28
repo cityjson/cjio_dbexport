@@ -28,7 +28,6 @@ import re
 from datetime import datetime
 from typing import Mapping, Iterable, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
-import json
 
 from click import ClickException
 from cjio import cityjson
