@@ -79,8 +79,11 @@ def export_all_cmd(ctx, filename):
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
         click.echo(f"Exporting the whole database")
-        cm = db3dnl.export(conn=conn,
-                           cfg=ctx.obj['cfg'])
+        dbexport = db3dnl.export(
+            conn_cfg=ctx.obj['cfg']['database'],
+            tile_index=ctx.obj['cfg']['tile_index'],
+            cityobject_type=ctx.obj['cfg']['cityobject_type'])
+        cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -89,11 +92,10 @@ def export_all_cmd(ctx, filename):
         conn.close()
 
 @click.command('export_tiles')
-@click.argument('tiles', nargs=-1, type=str)
 @click.option('--merge', is_flag=True,
               help='Merge the requested tiles into a single file')
-@click.option('--threads', type=int,
-              help='Merge the requested tiles into a single file')
+@click.option('--threads', type=int)
+@click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
 def export_tiles_cmd(ctx, tiles, merge, threads, dir):
@@ -134,6 +136,7 @@ def export_tiles_cmd(ctx, tiles, merge, threads, dir):
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except BaseException as e:
             raise click.ClickException(e)
+        return 0
     else:
         click.echo(f"Exporting {len(tile_list)} tiles...")
         with ThreadPoolExecutor(max_workers=threads) as executor:
@@ -146,7 +149,9 @@ def export_tiles_cmd(ctx, tiles, merge, threads, dir):
                         conn_cfg=ctx.obj['cfg']['database'],
                         tile_index=ctx.obj['cfg']['tile_index'],
                         cityobject_type=ctx.obj['cfg']['cityobject_type'],
-                        tile_list=(tile,))
+                        tile_list=(tile,),
+                        threads=1
+                    )
                 except BaseException as e:
                     log.error(f"Failed to export tile {str(tile)}\n{e}")
                 future = executor.submit(db3dnl.to_citymodel, dbexport)
@@ -171,6 +176,7 @@ def export_tiles_cmd(ctx, tiles, merge, threads, dir):
                 del cm
         click.echo(f"Done. Exported {len(tile_list) - len(failed)} tiles. "
                    f"Failed {len(failed)} tiles: {failed}")
+        return 0
 
 
 @click.command('export_bbox')
@@ -190,9 +196,12 @@ def export_bbox_cmd(ctx, bbox, filename):
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
-        cm = db3dnl.export(conn=conn,
-                           cfg=ctx.obj['cfg'],
-                           bbox=bbox)
+        click.echo(f"Exporting with BBOX={bbox}")
+        dbexport = db3dnl.export(
+            conn_cfg=ctx.obj['cfg']['database'],
+            tile_index=ctx.obj['cfg']['tile_index'],
+            cityobject_type=ctx.obj['cfg']['cityobject_type'])
+        cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -220,9 +229,14 @@ def export_extent_cmd(ctx, extent, filename):
     polygon = cjio_dbexport.utils.read_geojson_polygon(extent)
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
-        cm = db3dnl.export(conn=conn,
-                           cfg=ctx.obj['cfg'],
-                           extent=polygon)
+        click.echo(f"Exporting with polygonal selection. Polygon={extent.name}")
+        dbexport = db3dnl.export(
+            conn_cfg=ctx.obj['cfg']['database'],
+            tile_index=ctx.obj['cfg']['tile_index'],
+            cityobject_type=ctx.obj['cfg']['cityobject_type'],
+            extent=polygon
+        )
+        cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -232,10 +246,10 @@ def export_extent_cmd(ctx, extent, filename):
 
 
 @click.command('index')
-@click.argument('extent', type=click.File('r'))
-@click.argument('tilesize', type=float, nargs=2)
 @click.option('--drop', is_flag=True,
               help="Drop the tile_index.table if it exists.")
+@click.argument('extent', type=click.File('r'))
+@click.argument('tilesize', type=float, nargs=2)
 @click.pass_context
 def index_cmd(ctx, extent, tilesize, drop):
     """Create a tile index for the specified extent.

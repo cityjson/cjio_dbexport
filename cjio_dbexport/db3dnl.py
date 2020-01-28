@@ -356,45 +356,71 @@ def export(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
     # Need one thread per table
     if threads is None:
         threads = sum(len(cotables) for cotables in cityobject_type.values())
-    log.debug(f"Number of threads={threads}")
-    conn_pool = pool.ThreadedConnectionPool(minconn=1,
-                                            maxconn=threads,
-                                            **conn_cfg)
-    try:
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            future_to_table = {}
+    if threads == 1:
+        log.debug(f"Running on a single thread.")
+        conn = db.Db(**conn_cfg)
+        try:
             for cotype, cotables in cityobject_type.items():
-                # Need a thread for each of these
                 for cotable in cotables:
                     tablename = cotable['table']
-                    # Need a connection from the pool per thread
-                    conn = db.Db(conn=conn_pool.getconn(key=(cotype, tablename)))
-                    # Need a connection and thread for each of these
-                    log.info(f"CityObject {cotype} from table {cotable['table']}")
+                    log.debug(f"CityObject {cotype} from table {cotable['table']}")
                     features = db.Schema(cotable)
                     tx = db.Schema(tile_index)
                     query = build_query(conn=conn, features=features,
                                         tile_index=tx, tile_list=tile_list,
                                         bbox=bbox, extent=extent)
-                    # Schedule the DB query for execution and store the returned
-                    # Future together with the cotype and table name
-                    future = executor.submit(conn.get_dict, query)
-                    future_to_table[future] = (cotype, tablename)
-                    # If I put away the connection here, then it locks the main
-                    # thread and it becomes like using a single connection.
-                    # conn_pool.putconn(conn=conn.conn, key=(cotype, tablename),
-                    #                   close=True)
-            for future in as_completed(future_to_table):
-                cotype, tablename = future_to_table[future]
-                try:
-                    # Note that resultset can be []
-                    yield (cotype, cotable['table']), future.result()
-                except pgError as e:
-                    log.error(f"{e.pgcode}\t{e.pgerror}")
-                    raise ClickException(f"Could not query {cotable}. Check the "
-                                         f"logs for details.")
-    finally:
-        conn_pool.closeall()
+                    try:
+                        # Note that resultset can be []
+                        yield (cotype, cotable['table']), conn.get_dict(query)
+                    except pgError as e:
+                        log.error(f"{e.pgcode}\t{e.pgerror}")
+                        raise ClickException(
+                            f"Could not query {cotable}. Check the "
+                            f"logs for details.")
+        finally:
+            conn.close()
+    elif threads > 1:
+        log.debug(f"Running with ThreadPoolExecutor, nr. of threads={threads}")
+        conn_pool = pool.ThreadedConnectionPool(minconn=1,
+                                                maxconn=threads,
+                                                **conn_cfg)
+        try:
+            with ThreadPoolExecutor(max_workers=threads) as executor:
+                future_to_table = {}
+                for cotype, cotables in cityobject_type.items():
+                    # Need a thread for each of these
+                    for cotable in cotables:
+                        tablename = cotable['table']
+                        # Need a connection from the pool per thread
+                        conn = db.Db(conn=conn_pool.getconn(key=(cotype, tablename)))
+                        # Need a connection and thread for each of these
+                        log.debug(f"CityObject {cotype} from table {cotable['table']}")
+                        features = db.Schema(cotable)
+                        tx = db.Schema(tile_index)
+                        query = build_query(conn=conn, features=features,
+                                            tile_index=tx, tile_list=tile_list,
+                                            bbox=bbox, extent=extent)
+                        # Schedule the DB query for execution and store the returned
+                        # Future together with the cotype and table name
+                        future = executor.submit(conn.get_dict, query)
+                        future_to_table[future] = (cotype, tablename)
+                        # If I put away the connection here, then it locks the main
+                        # thread and it becomes like using a single connection.
+                        # conn_pool.putconn(conn=conn.conn, key=(cotype, tablename),
+                        #                   close=True)
+                for future in as_completed(future_to_table):
+                    cotype, tablename = future_to_table[future]
+                    try:
+                        # Note that resultset can be []
+                        yield (cotype, cotable['table']), future.result()
+                    except pgError as e:
+                        log.error(f"{e.pgcode}\t{e.pgerror}")
+                        raise ClickException(f"Could not query {cotable}. Check the "
+                                             f"logs for details.")
+        finally:
+            conn_pool.closeall()
+    else:
+        raise ValueError(f"Number of threads must be greater than 0.")
 
 ### start Multithreading optimisation tests ---
 
@@ -419,7 +445,7 @@ def _export_no_pool(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: M
                     # Need a connection from the pool per thread
                     # conn = db.Db(conn=conn_pool.getconn(key=(cotype, tablename)))
                     # Need a connection and thread for each of these
-                    log.info(f"CityObject {cotype} from table {cotable['table']}")
+                    log.debug(f"CityObject {cotype} from table {cotable['table']}")
                     features = db.Schema(cotable)
                     query = build_query(conn=conn, features=features,
                                         tile_index=tile_index, tile_list=tile_list,
@@ -496,7 +522,6 @@ def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
 def dbexport_to_cityobjects(dbexport):
     for coinfo, tabledata in dbexport:
         cotype, cotable = coinfo
-        log.info(f"Generating CityObject {cotype} from table {cotable}")
         if cotype.lower() == 'building':
             geomtype = 'Solid'
         else:
@@ -517,9 +542,13 @@ def convert(dbexport):
     epsg = 7415
     cm = cityjson.CityJSON()
     cm.cityobjects = dict(dbexport_to_cityobjects(dbexport))
+    log.debug("Referencing geometry")
     cityobjects, vertex_lookup = cm.reference_geometry()
+    log.debug("Adding to json")
     cm.add_to_j(cityobjects, vertex_lookup)
+    log.debug("Updating bbox")
     cm.update_bbox()
+    log.debug("Setting EPSG")
     cm.set_epsg(epsg)
     log.info(f"Exported CityModel:\n{cm}")
     return cm
@@ -548,7 +577,7 @@ def to_citymodel(dbexport):
     try:
         cm = convert(dbexport)
     except BaseException as e:
-        log.error(f"Failed to convert export to CityJSON\n{e}")
+        log.error(f"Failed to convert database export to CityJSON\n{e}")
         return None
     if cm:
         try:

@@ -54,7 +54,7 @@ class Db(object):
                     dbname=dbname, host=host, port=port, user=user,
                     password=password
                 )
-                log.info(f"Opened connection to {self.conn.get_dsn_parameters()}")
+                log.debug(f"Opened connection to {self.conn.get_dsn_parameters()}")
             except psycopg2.OperationalError:
                 log.exception("I'm unable to connect to the database")
                 raise
@@ -133,7 +133,7 @@ class Db(object):
     def close(self):
         """Close connection."""
         self.conn.close()
-        log.info("Closed database successfully")
+        log.debug("Closed database successfully")
 
 
 def identifier(relation_name):

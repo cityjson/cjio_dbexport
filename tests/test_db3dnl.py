@@ -77,16 +77,14 @@ class TestIntegration:
     def test_export_all(self, data_dir, cfg_parsed, db3dnl_db, caplog):
         caplog.set_level(logging.DEBUG)
         export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
-                                   tile_index=db.Schema(
-                                       cfg_parsed['tile_index']),
+                                   tile_index=cfg_parsed['tile_index'],
                                    cityobject_type=cfg_parsed[
                                        'cityobject_type'])
         dbexport = list(export_gen)
 
     def test_export_bbox(self, data_dir, cfg_parsed, db3dnl_db):
         export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
-                                   tile_index=db.Schema(
-                                       cfg_parsed['tile_index']),
+                                   tile_index=cfg_parsed['tile_index'],
                                    cityobject_type=cfg_parsed[
                                        'cityobject_type'],
                                    bbox=[192837.734, 465644.179, 193701.818,
@@ -95,8 +93,7 @@ class TestIntegration:
 
     def test_export_extent(self, data_dir, cfg_parsed, db3dnl_db, db3dnl_poly):
         export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
-                                   tile_index=db.Schema(
-                                       cfg_parsed['tile_index']),
+                                   tile_index=cfg_parsed['tile_index'],
                                    cityobject_type=cfg_parsed[
                                        'cityobject_type'],
                                    extent=db3dnl_poly)
@@ -105,8 +102,7 @@ class TestIntegration:
     def test_export_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
                               db3dnl_4tiles_pickle):
         export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
-                                   tile_index=db.Schema(
-                                       cfg_parsed['tile_index']),
+                                   tile_index=cfg_parsed['tile_index'],
                                    cityobject_type=cfg_parsed[
                                        'cityobject_type'],
                                    tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
@@ -117,35 +113,33 @@ class TestIntegration:
     def test_export_tile_list_one(self, data_dir, cfg_parsed, db3dnl_db,
                               db3dnl_4tiles_pickle):
         export_gen = db3dnl.export(conn_cfg=cfg_parsed['database'],
-                                   tile_index=db.Schema(
-                                       cfg_parsed['tile_index']),
+                                   tile_index=cfg_parsed['tile_index'],
                                    cityobject_type=cfg_parsed[
                                        'cityobject_type'],
                                    tile_list=['gb2',])
         dbexport = list(export_gen)
 
-    def test_export_no_pool_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
-                                      caplog,
-                                      db3dnl_4tiles_pickle):
-        export_gen = db3dnl._export_no_pool(conn_cfg=cfg_parsed['database'],
-                                            tile_index=db.Schema(
-                                                cfg_parsed['tile_index']),
-                                            cityobject_type=cfg_parsed[
-                                                'cityobject_type'],
-                                            tile_list=['gb2', 'ic1', 'ic2',
-                                                       'ec4'])
-        dbexport = list(export_gen)
-        with open(db3dnl_4tiles_pickle, 'wb') as fo:
-            pickle.dump(dbexport, fo)
-
-    def test_export_single_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
-                                     caplog, db3dnl_4tiles_pickle):
-        caplog.set_level(logging.DEBUG)
-        dbexport = list(db3dnl._export_single(conn=db3dnl_db, cfg=cfg_parsed,
-                                              tile_list=['gb2', 'ic1', 'ic2',
-                                                         'ec4']))
-        with open(db3dnl_4tiles_pickle, 'wb') as fo:
-            pickle.dump(dbexport, fo)
+    # def test_export_no_pool_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
+    #                                   caplog,
+    #                                   db3dnl_4tiles_pickle):
+    #     export_gen = db3dnl._export_no_pool(conn_cfg=cfg_parsed['database'],
+    #                                         tile_index=cfg_parsed['tile_index'],
+    #                                         cityobject_type=cfg_parsed[
+    #                                             'cityobject_type'],
+    #                                         tile_list=['gb2', 'ic1', 'ic2',
+    #                                                    'ec4'])
+    #     dbexport = list(export_gen)
+    #     with open(db3dnl_4tiles_pickle, 'wb') as fo:
+    #         pickle.dump(dbexport, fo)
+    #
+    # def test_export_single_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
+    #                                  caplog, db3dnl_4tiles_pickle):
+    #     caplog.set_level(logging.DEBUG)
+    #     dbexport = list(db3dnl._export_single(conn=db3dnl_db, cfg=cfg_parsed,
+    #                                           tile_list=['gb2', 'ic1', 'ic2',
+    #                                                      'ec4']))
+    #     with open(db3dnl_4tiles_pickle, 'wb') as fo:
+    #         pickle.dump(dbexport, fo)
 
     def test_convert(self, data_dir, db3dnl_4tiles_pickle, caplog):
         caplog.set_level(logging.DEBUG)
@@ -160,8 +154,7 @@ class TestIntegration:
                             caplog):
         caplog.set_level(logging.DEBUG)
         dbexport = db3dnl.export(conn_cfg=cfg_parsed['database'],
-                                 tile_index=db.Schema(
-                                     cfg_parsed['tile_index']),
+                                 tile_index=cfg_parsed['tile_index'],
                                  cityobject_type=cfg_parsed[
                                      'cityobject_type'],
                                  tile_list=['gb2', ])
@@ -177,51 +170,17 @@ class TestIntegration:
                                                   vspacing=tilesize[1])
         log.info(f"Nr. of tiles={len(grid)}")
 
-    def test_save(self, data_dir):
-        with open(data_dir / '4tiles_cm.pickle', 'rb') as fo:
-            cm = pickle.load(fo)
-        db3dnl.save(cm, (data_dir / '4tiles_test').with_suffix('.json'))
+    # def test_save(self, data_dir):
+    #     with open(data_dir / '4tiles_cm.pickle', 'rb') as fo:
+    #         cm = pickle.load(fo)
+    #     db3dnl.save(cm, (data_dir / '4tiles_test').with_suffix('.json'))
 
-    def test_export_tiles_int_cmd(self, cfg_db3dnl_int, data_dir,
-                                  merge=False):
-        """Test when the tile_index ID is an integer in the database, not a
-        string."""
-        dir = str(data_dir)
-        tiles = ('1', '2')
-
-    def test_export_tiles_int_list_cmd(self, db3dnl_db, cfg_db3dnl_int, data_dir):
-        """Test when the tile_index ID is an integer in the database, not a
-        string AND the tiles are a list, not a tuple."""
-        tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
-        tile_list = db3dnl.with_list(conn=db3dnl_db, tile_index=tile_index,
-                                     tile_list=('all',))
-        for tile in tile_list:
-            filepath = (data_dir / str(tile)).with_suffix('.json')
-            try:
-                dbexport = db3dnl.export(
-                    conn_cfg=cfg_db3dnl_int['database'],
-                    tile_index=tile_index,
-                    cityobject_type=cfg_db3dnl_int['cityobject_type'],
-                    tile_list=(tile,))
-                cm = db3dnl.convert(dbexport)
-            except Exception as e:
-                cm = None
-                log.error(f"Failed to export tile {str(tile)}\n{e}")
-            if cm is not None:
-                try:
-                    cm.remove_duplicate_vertices()
-                except Exception as e:
-                    log.error(f"Failed to remove duplicate vertices\n{e}")
-                try:
-                    cm.remove_orphan_vertices()
-                except Exception as e:
-                    log.error(f"Failed to remove orphan vertices\n{e}")
-                try:
-                    with open(filepath, 'w') as fout:
-                        json_str = json.dumps(cm.j, indent=None)
-                        fout.write(json_str)
-                except IOError as e:
-                    log.error(f"Invalid output file: {filepath}\n{e}")
+    # def test_export_tiles_int_cmd(self, cfg_db3dnl_int, data_dir,
+    #                               merge=False):
+    #     """Test when the tile_index ID is an integer in the database, not a
+    #     string."""
+    #     dir = str(data_dir)
+    #     tiles = ('1', '2')
 
 
     def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int, data_dir):
