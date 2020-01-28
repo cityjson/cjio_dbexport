@@ -5,6 +5,11 @@ import pytest
 
 from cjio_dbexport import configure
 
+@pytest.fixture(scope='function')
+def cfg_open(cfg_cjdb_path):
+    with open(cfg_cjdb_path, 'r') as fo:
+        yield fo
+
 class TestConfigure:
     def test_parse_configuration(self, cfg_open):
         cfg = configure.parse_configuration(cfg_open)
