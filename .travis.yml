@@ -36,21 +36,21 @@ jobs:
       dist: bionic
       before_install:
         - export EXE_PKG="$EXE_NAME"_"$TRAVIS_CPU_ARCH"_ubuntu1804
-    - name: Python 3.7.5 with pyenv on Windows
+    - name: Python 3.7.6 with pyenv on Windows
       os: windows
       language: shell
       before_install:
-        - export PATH="$HOME/.pyenv/pyenv-win/bin:$HOME/.pyenv/pyenv-win/shims:$HOME/.pyenv/pyenv-win/versions/3.7.5:$HOME/.pyenv/pyenv-win/versions/3.7.5/Scripts:$PATH"
-        - export EXE_PKG="$EXE_NAME"_"$TRAVIS_CPU_ARCH"_windows10
+        - export PATH="$HOME/.pyenv/pyenv-win/bin:$HOME/.pyenv/pyenv-win/shims:$HOME/.pyenv/pyenv-win/versions/3.7.6-amd64:$HOME/.pyenv/pyenv-win/versions/3.7.6-amd64/Scripts:$PATH"
+        - export EXE_PKG="$EXE_NAME"_"$TRAVIS_CPU_ARCH"_win10
         - if [ -z "$(ls -A $HOME/.pyenv)" ]; then
           git clone https://github.com/pyenv-win/pyenv-win.git $HOME/.pyenv;
-          pyenv install -q 3.6.7;
-          pyenv install -q 3.7.5;
-          pyenv install -q 3.8.1;
+          pyenv install -q 3.6.9-amd64;
+          pyenv install -q 3.7.6-amd64;
+          pyenv install -q 3.8.1-amd64;
           fi
         - pyenv rehash
-        - pyenv global 3.7.5
-        - pyenv local 3.7.5
+        - pyenv global 3.7.6-amd64
+        - pyenv local 3.7.6-amd64
         - python --version
         - python -m pip install --upgrade pip
         - pip install pywin32
