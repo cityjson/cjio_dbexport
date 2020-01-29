@@ -41,6 +41,7 @@ from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils
 
 
 @click.group()
+@click.version_option()
 @click.option(
     '--log',
     type=click.Choice(
