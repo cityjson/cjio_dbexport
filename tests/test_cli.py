@@ -31,7 +31,7 @@ class TestDb3DNLIntegration:
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path),
             'export_tiles',
-            '--threads', '4',
+            '--jobs', '4',
             'gb1', 'ic3', 'kh7', 'ec4',
             str(data_dir)
         ])
@@ -50,7 +50,7 @@ class TestDb3DNLIntegration:
             str(cfg_db3dnl_path),
             'export_tiles',
             '--merge',
-            '--threads', '4',
+            '--jobs', '4',
             'gb1', 'ic3', 'kh7', 'ec4',
             str(data_dir)
         ])

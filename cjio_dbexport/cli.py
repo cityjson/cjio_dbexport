@@ -28,8 +28,7 @@ import logging
 import sys
 from pathlib import Path
 from io import StringIO
-import json
-from concurrent.futures import ThreadPoolExecutor, as_completed
+from concurrent.futures import ProcessPoolExecutor, as_completed
 
 from psycopg2 import Error as pgError
 from psycopg2 import sql
@@ -47,7 +46,7 @@ from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils
     type=click.Choice(
         ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL'],
         case_sensitive=False),
-    default='DEBUG',
+    default='INFO',
     help="Set the logging level in the log file 'cjdb.log'.")
 @click.argument('configuration', type=click.File('r'))
 @click.pass_context
@@ -80,10 +79,10 @@ def export_all_cmd(ctx, filename):
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
         click.echo(f"Exporting the whole database")
-        dbexport = db3dnl.export(
-            conn_cfg=ctx.obj['cfg']['database'],
-            tile_index=ctx.obj['cfg']['tile_index'],
-            cityobject_type=ctx.obj['cfg']['cityobject_type'])
+        dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
+                                tile_index=ctx.obj['cfg']['tile_index'],
+                                cityobject_type=ctx.obj['cfg'][
+                                    'cityobject_type'])
         cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
@@ -95,11 +94,12 @@ def export_all_cmd(ctx, filename):
 @click.command('export_tiles')
 @click.option('--merge', is_flag=True,
               help='Merge the requested tiles into a single file')
-@click.option('--threads', type=int)
+@click.option('--jobs', '-j', type=int, default=1,
+              help='The number of parallel jobs to run')
 @click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, threads, dir):
+def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
@@ -117,6 +117,7 @@ def export_tiles_cmd(ctx, tiles, merge, threads, dir):
         tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
                                      tile_list=tiles)
         click.echo(f"Found {len(tile_list)} tiles in the tile index.")
+
     except BaseException as e:
         raise click.ClickException(f"Could not generate tile_list. Check the "
                                    f"logs for details.\n{e}")
@@ -127,11 +128,10 @@ def export_tiles_cmd(ctx, tiles, merge, threads, dir):
         filepath = (path / 'merged').with_suffix('.json')
         try:
             click.echo(f"Exporting merged tiles {tiles}")
-            dbexport = db3dnl.export(
-                conn_cfg=ctx.obj['cfg']['database'],
-                tile_index=ctx.obj['cfg']['tile_index'],
-                cityobject_type=ctx.obj['cfg']['cityobject_type'],
-                tile_list=tile_list)
+            dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
+                                    tile_index=ctx.obj['cfg']['tile_index'],
+                                    cityobject_type=ctx.obj['cfg'][
+                                        'cityobject_type'], tile_list=tile_list)
             cm = db3dnl.convert(dbexport)
             cityjson.save(cm, path=filepath, indent=None)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
@@ -140,43 +140,25 @@ def export_tiles_cmd(ctx, tiles, merge, threads, dir):
         return 0
     else:
         click.echo(f"Exporting {len(tile_list)} tiles...")
-        with ThreadPoolExecutor(max_workers=threads) as executor:
-            future_to_export = {}
-            failed = []
+        click.echo(f"Output directory: {path}")
+        failed = []
+        futures = []
+        with ProcessPoolExecutor(max_workers=jobs) as executor:
             for tile in tile_list:
                 filepath = (path / str(tile)).with_suffix('.json')
-                try:
-                    dbexport = db3dnl.export(
-                        conn_cfg=ctx.obj['cfg']['database'],
-                        tile_index=ctx.obj['cfg']['tile_index'],
-                        cityobject_type=ctx.obj['cfg']['cityobject_type'],
-                        tile_list=(tile,),
-                        threads=1
-                    )
-                except BaseException as e:
-                    log.error(f"Failed to export tile {str(tile)}\n{e}")
-                future = executor.submit(db3dnl.to_citymodel, dbexport)
-                future_to_export[future] = filepath
-            for i,future in enumerate(as_completed(future_to_export)):
-                filepath = future_to_export[future]
-                cm = future.result()
-                if cm is not None:
-                    try:
-                        with open(filepath, 'w') as fout:
-                            json_str = json.dumps(cm.j, indent=None)
-                            fout.write(json_str)
-                        click.echo(f"[{i+1}/{len(tile_list)}] Saved CityJSON to {filepath}")
-                    except IOError as e:
-                        log.error(f"Invalid output file: {filepath}\n{e}")
-                        failed.append(filepath.stem)
+                futures.append(executor.submit(db3dnl.export, tile, filepath,
+                                               ctx.obj['cfg']))
+
+            for i,future in enumerate(as_completed(futures)):
+                success, filepath = future.result()
+                if success:
+                    click.echo(
+                        f"[{i + 1}/{len(tile_list)}] Saved {filepath.name}")
                 else:
-                    click.echo(f"Failed to create CityJSON from {filepath.stem},"
-                               f" check the logs for details.")
                     failed.append(filepath.stem)
-                del future_to_export[future]
-                del cm
-        click.echo(f"Done. Exported {len(tile_list) - len(failed)} tiles. "
-                   f"Failed {len(failed)} tiles: {failed}")
+            click.echo(
+                f"Done. Exported {len(tile_list) - len(failed)} tiles. "
+                f"Failed {len(failed)} tiles: {failed}")
         return 0
 
 
@@ -198,10 +180,10 @@ def export_bbox_cmd(ctx, bbox, filename):
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
         click.echo(f"Exporting with BBOX={bbox}")
-        dbexport = db3dnl.export(
-            conn_cfg=ctx.obj['cfg']['database'],
-            tile_index=ctx.obj['cfg']['tile_index'],
-            cityobject_type=ctx.obj['cfg']['cityobject_type'])
+        dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
+                                tile_index=ctx.obj['cfg']['tile_index'],
+                                cityobject_type=ctx.obj['cfg'][
+                                    'cityobject_type'])
         cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
@@ -231,12 +213,10 @@ def export_extent_cmd(ctx, extent, filename):
     conn = db.Db(**ctx.obj['cfg']['database'])
     try:
         click.echo(f"Exporting with polygonal selection. Polygon={extent.name}")
-        dbexport = db3dnl.export(
-            conn_cfg=ctx.obj['cfg']['database'],
-            tile_index=ctx.obj['cfg']['tile_index'],
-            cityobject_type=ctx.obj['cfg']['cityobject_type'],
-            extent=polygon
-        )
+        dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
+                                tile_index=ctx.obj['cfg']['tile_index'],
+                                cityobject_type=ctx.obj['cfg'][
+                                    'cityobject_type'], extent=polygon)
         cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")

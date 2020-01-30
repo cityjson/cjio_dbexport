@@ -28,8 +28,9 @@ import re
 from datetime import datetime
 from typing import Mapping, Iterable, Tuple
 from concurrent.futures import ThreadPoolExecutor, as_completed
+import json
 
-from click import ClickException
+from click import ClickException, echo
 from cjio import cityjson
 from cjio.models import CityObject, Geometry
 from psycopg2 import sql, pool, Error as pgError
@@ -293,7 +294,7 @@ def with_list(conn: db.Db, tile_index: db.Schema,
 
 
 def tiles_in_index(conn: db.Db, tile_index: db.Schema,
-                   tile_list: Tuple[str]) -> Iterable[str]:
+                   tile_list: Tuple[str]) -> Tuple[Iterable[str], Iterable[str]]:
     """Return the tile IDs that are present in the tile index."""
     if not isinstance(tile_list, tuple):
         tile_list = tuple(tile_list)
@@ -311,9 +312,9 @@ def tiles_in_index(conn: db.Db, tile_index: db.Schema,
     """).format(**query_params)
     log.debug(conn.print_query(query))
     in_index = [t[0] for t in conn.get_query(query)]
-    diff = set(tile_list) - set(in_index)
-    if len(diff) > 0:
-        log.warning(f"The provided tile IDs {diff} are not in the index, "
+    not_found = set(tile_list) - set(in_index)
+    if len(not_found) > 0:
+        log.warning(f"The provided tile IDs {not_found} are not in the index, "
                     f"they are skipped.")
     return in_index
 
@@ -346,9 +347,9 @@ def parse_polygonz(wkt_polygonz):
         log.error("Not a POLYGON Z")
 
 
-def export(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
-           threads=None,
-           tile_list=None, bbox=None, extent=None):
+def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
+          threads=None,
+          tile_list=None, bbox=None, extent=None):
     """Export a table from PostgreSQL. Multithreading, with connection pooling."""
     # see: https://realpython.com/intro-to-python-threading/
     # see: https://stackoverflow.com/a/39310039
@@ -380,8 +381,9 @@ def export(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
             conn.close()
     elif threads > 1:
         log.debug(f"Running with ThreadPoolExecutor, nr. of threads={threads}")
+        pool_size = sum(len(cotables) for cotables in cityobject_type.values())
         conn_pool = pool.ThreadedConnectionPool(minconn=1,
-                                                maxconn=threads,
+                                                maxconn=pool_size+1,
                                                 **conn_cfg)
         try:
             with ThreadPoolExecutor(max_workers=threads) as executor:
@@ -423,9 +425,9 @@ def export(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
 
 ### start Multithreading optimisation tests ---
 
-def _export_no_pool(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
-           threads=None,
-           tile_list=None, bbox=None, extent=None):
+def _query_no_pool(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
+                   threads=None,
+                   tile_list=None, bbox=None, extent=None):
     """Export a table from PostgreSQL. Multithreading, without connection pooling."""
     # see: https://realpython.com/intro-to-python-threading/
     # see: https://stackoverflow.com/a/39310039
@@ -467,8 +469,8 @@ def _export_no_pool(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: M
     finally:
         conn.close()
 
-def _export_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
-           extent=None):
+def _query_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
+                  extent=None):
     """Export a table from PostgreSQL. Single thread, single connection."""
     # Need a thread per tile
     tile_index = db.Schema(cfg['tile_index'])
@@ -590,3 +592,32 @@ def to_citymodel(dbexport):
             log.error(f"Failed to remove orphan vertices\n{e}")
             return None
         return cm
+
+def export(tile, filepath, cfg):
+    """Export a tile from PostgreSQL, convert to CityJSON and write to file."""
+    try:
+        dbexport = query(conn_cfg=cfg['database'], tile_index=cfg['tile_index'],
+                         cityobject_type=cfg['cityobject_type'], threads=1,
+                         tile_list=(tile,))
+    except BaseException as e:
+        log.error(f"Failed to export tile {str(tile)}\n{e}")
+        return False, filepath
+    try:
+        cm = to_citymodel(dbexport)
+    finally:
+        del dbexport
+    if cm is not None:
+        try:
+            with open(filepath, 'w') as fout:
+                json_str = json.dumps(cm.j, indent=None)
+                fout.write(json_str)
+            return True, filepath
+        except IOError as e:
+            log.error(f"Invalid output file: {filepath}\n{e}")
+            return False, filepath
+        finally:
+            del cm
+    else:
+        log.error(f"Failed to create CityJSON from {filepath.stem},"
+                   f" check the logs for details.")
+        return False, filepath
