@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 from io import StringIO
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import freeze_support
 
 from psycopg2 import Error as pgError
 from psycopg2 import sql
@@ -364,4 +365,5 @@ main.add_command(export_tiles_cmd)
 main.add_command(index_cmd)
 
 if __name__ == "__main__":
+    freeze_support()
     sys.exit(main())  # pragma: no cover
