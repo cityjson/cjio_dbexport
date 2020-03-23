@@ -28,6 +28,8 @@ from typing import TextIO, Mapping
 
 import yaml
 
+from cjio_dbexport import utils
+
 log = logging.getLogger(__name__)
 
 
@@ -91,6 +93,15 @@ def parse_configuration(config: TextIO) -> Mapping:
         raise
     try:
         verify_cotypes(cfg_stream)
+    except ValueError as e:
+        log.exception(e)
+        raise
+    try:
+        lod_num = cfg_stream['lod']
+        cfg_stream['lod'] = utils.lod_to_string(lod_num)
+    except KeyError:
+        log.exception("Did not find the 'lod' key in the configuration file")
+        raise KeyError("Did not find the 'lod' key in the configuration file")
     except ValueError as e:
         log.exception(e)
         raise

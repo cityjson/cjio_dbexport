@@ -40,6 +40,11 @@ def t_dir():
 def data_dir(t_dir):
     yield t_dir / 'data'
 
+@pytest.fixture('session')
+def data_output_dir(t_dir):
+    outdir = t_dir / 'data' / 'output'
+    outdir.mkdir(exist_ok=True)
+    yield outdir
 
 @pytest.fixture('session')
 def root_dir(t_dir):
@@ -73,6 +78,10 @@ def cfg_db3dnl_int(data_dir):
 def db3dnl_poly(data_dir):
     with open(data_dir / 'db3dnl_poly.pickle', 'rb') as fo:
         yield pickle.load(fo)
+
+@pytest.fixture(scope='function')
+def db3dnl_poly_geojson(data_dir):
+    yield data_dir / 'db3dnl_poly.geojson'
 
 @pytest.fixture(scope='function')
 def db3dnl_4tiles_pickle(data_dir):

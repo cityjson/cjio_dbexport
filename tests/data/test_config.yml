@@ -1,3 +1,5 @@
+lod: 1
+
 database:
   dbname: cjdb_test
   host: localhost

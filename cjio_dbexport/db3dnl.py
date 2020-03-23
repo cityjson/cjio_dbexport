@@ -494,14 +494,14 @@ def _query_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
 
 ### end Multithreading optimisation test ---
 
-def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
+def table_to_cityobjects(tabledata, cotype: str, geomtype: str, lod: str):
     """Converts a database record to a CityObject."""
     for record in tabledata:
         coid = record['coid']
         co = CityObject(id=coid)
         # Parse the geometry
         # TODO: refactor geometry parsing into a function
-        geom = Geometry(type=geomtype, lod=1)
+        geom = Geometry(type=geomtype, lod=lod)
         if geomtype == 'Solid':
             solid = [record['geom'],]
             geom.boundaries = solid
@@ -520,7 +520,7 @@ def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
         yield coid, co
 
 
-def dbexport_to_cityobjects(dbexport):
+def dbexport_to_cityobjects(dbexport, lod):
     for coinfo, tabledata in dbexport:
         cotype, cotable = coinfo
         if cotype.lower() == 'building':
@@ -532,17 +532,18 @@ def dbexport_to_cityobjects(dbexport):
 
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
-            tabledata=tabledata, cotype=cotype, geomtype=geomtype)
+            tabledata=tabledata, cotype=cotype, geomtype=geomtype, lod=lod
+        )
         for coid, co in cityobject_generator:
             yield coid, co
 
 
-def convert(dbexport):
+def convert(dbexport, lod: str):
     """Convert the exported citymodel to CityJSON."""
     # Set EPSG
     epsg = 7415
     cm = cityjson.CityJSON()
-    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport))
+    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, lod=lod))
     log.debug("Referencing geometry")
     cityobjects, vertex_lookup = cm.reference_geometry()
     log.debug("Adding to json")
@@ -574,9 +575,9 @@ def _to_citymodel(filepath, dbexport) -> Tuple:
             return None, None
         return filepath, cm
 
-def to_citymodel(dbexport):
+def to_citymodel(dbexport, lod: str):
     try:
-        cm = convert(dbexport)
+        cm = convert(dbexport, lod=lod)
     except BaseException as e:
         log.error(f"Failed to convert database export to CityJSON\n{e}")
         return None
@@ -603,7 +604,7 @@ def export(tile, filepath, cfg):
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
     try:
-        cm = to_citymodel(dbexport)
+        cm = to_citymodel(dbexport, lod=cfg['lod'])
     finally:
         del dbexport
     if cm is not None:

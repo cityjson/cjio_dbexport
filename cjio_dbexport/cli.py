@@ -67,9 +67,10 @@ def main(ctx, log, configuration):
 
 
 @click.command('export')
+@click.option('--multi-lod', is_flag=True, help="Write all the LoDs to a single file.")
 @click.argument('filename', type=str)
 @click.pass_context
-def export_all_cmd(ctx, filename):
+def export_all_cmd(ctx, multi_lod, filename):
     """Export the whole database into a CityJSON file.
 
     FILENAME is the path and name of the output file.
@@ -84,7 +85,7 @@ def export_all_cmd(ctx, filename):
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
                                     'cityobject_type'])
-        cm = db3dnl.convert(dbexport)
+        cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -97,10 +98,11 @@ def export_all_cmd(ctx, filename):
               help='Merge the requested tiles into a single file')
 @click.option('--jobs', '-j', type=int, default=1,
               help='The number of parallel jobs to run')
+@click.option('--multi-lod', is_flag=True, help="Write all the LoDs to a single file.")
 @click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
+def export_tiles_cmd(ctx, tiles, merge, jobs, multi_lod, dir):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
@@ -133,7 +135,7 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
                                     tile_index=ctx.obj['cfg']['tile_index'],
                                     cityobject_type=ctx.obj['cfg'][
                                         'cityobject_type'], tile_list=tile_list)
-            cm = db3dnl.convert(dbexport)
+            cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
             cityjson.save(cm, path=filepath, indent=None)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except BaseException as e:
@@ -164,10 +166,12 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
 
 
 @click.command('export_bbox')
+@click.option('--multi-lod',
+              is_flag=True, help="Write all the LoDs to a single file.")
 @click.argument('bbox', nargs=4, type=float)
 @click.argument('filename', type=str)
 @click.pass_context
-def export_bbox_cmd(ctx, bbox, filename):
+def export_bbox_cmd(ctx, multi_lod, bbox, filename):
     """Export the objects within a 2D Bounding Box into a CityJSON file.
 
     BBOX is a 2D Bounding Box (minx miny maxx maxy). The units of the
@@ -184,8 +188,9 @@ def export_bbox_cmd(ctx, bbox, filename):
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'])
-        cm = db3dnl.convert(dbexport)
+                                    'cityobject_type'],
+                                bbox=bbox)
+        cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -195,10 +200,11 @@ def export_bbox_cmd(ctx, bbox, filename):
 
 
 @click.command('export_extent')
+@click.option('--multi-lod', is_flag=True, help="Write all the LoDs to a single file.")
 @click.argument('extent', type=click.File('r'))
 @click.argument('filename', type=str)
 @click.pass_context
-def export_extent_cmd(ctx, extent, filename):
+def export_extent_cmd(ctx, multi_lod, extent, filename):
     """Export the objects within the given polygon into a CityJSON file.
 
     EXTENT is a GeoJSON file that contains a single Polygon. The CRS of the
@@ -218,7 +224,7 @@ def export_extent_cmd(ctx, extent, filename):
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
                                     'cityobject_type'], extent=polygon)
-        cm = db3dnl.convert(dbexport)
+        cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
