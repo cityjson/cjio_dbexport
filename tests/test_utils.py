@@ -81,3 +81,14 @@ class TestSorting:
         point_res = utils.rev_morton_code(morton_key)
         assert pytest.approx(point[0], point_res[0]) and \
                pytest.approx(point[1], point_res[1])
+
+class TestParsing:
+    @pytest.mark.parametrize('lod_num, lod_str',[
+        (1, '1'),
+        (0.3, '0.3'),
+        (1.2, '1.2'),
+        (0, '0'),
+        (1.0, '1.0')
+    ])
+    def test_lod_to_string(self, lod_num, lod_str):
+        assert utils.lod_to_string(lod_num) == lod_str

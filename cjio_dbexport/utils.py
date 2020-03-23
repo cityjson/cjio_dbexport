@@ -26,7 +26,7 @@ SOFTWARE.
 import json
 import math
 from statistics import mean
-from typing import Iterable, Tuple, Mapping, TextIO
+from typing import Iterable, Tuple, Mapping, TextIO, Union
 import logging
 
 log = logging.getLogger(__name__)
@@ -310,3 +310,16 @@ def to_ewkt(polygon, srid) -> str:
     ring = [" ".join(map(str, i)) for i in polygon[0]]
     ewkt = f'SRID={srid};POLYGON(({",".join(ring)}))'
     return ewkt
+
+def lod_to_string(lod: Union[int, float]) -> Union[str, None]:
+    """Convert and LoD integer or float to string."""
+    if lod is None:
+        return None
+    elif isinstance(lod, str):
+        return lod
+    elif isinstance(lod, int):
+        return str(lod)
+    elif isinstance(lod, float):
+        return str(round(lod, 1))
+    else:
+        raise ValueError(f"Type {type(lod)} is not allowed as input")
