@@ -26,7 +26,7 @@ SOFTWARE.
 import logging
 import re
 from datetime import datetime
-from typing import Mapping, Iterable, Tuple
+from typing import Mapping, Sequence, Tuple, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 
@@ -56,50 +56,92 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
         exclude = []
     attr_select = sql.SQL(', ').join(sql.Identifier(col) for col in table_fields
                                      if col != features.field.pk.string and
-                                     col != features.field.geometry.string and
+                                     col not in features.field.geometry.values() and
                                      col != features.field.cityobject_id.string and
                                      col not in exclude)
+    lods = list(features.field.geometry.keys())
     # polygons subquery
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
-        polygons_sub, attr_where, extent_sub = query_bbox(features, bbox, epsg)
+        polygons_sub, attr_where, extent_sub = query_bbox(features, bbox, epsg,
+                                                          lod=lods[0])
     elif tile_list:
         log.info(f"Exporting with a list of tiles {tile_list}")
         polygons_sub, attr_where, extent_sub = query_tiles_in_list(
             features=features,
             tile_index=tile_index,
-            tile_list=tile_list)
+            tile_list=tile_list,
+            lod=lods[0]
+        )
     elif extent:
         log.info(f"Exporting with polygon extent")
         ewkt = utils.to_ewkt(polygon=extent, srid=epsg)
         polygons_sub, attr_where, extent_sub = query_extent(features=features,
-                                                            ewkt=ewkt)
+                                                            ewkt=ewkt,
+                                                            lod=lods[0])
     else:
         log.info(f"Exporting the whole database")
-        polygons_sub, attr_where, extent_sub = query_all(features)
+        polygons_sub, attr_where, extent_sub = query_all(features=features,
+                                                         lod=lods[0])
 
     # Main query
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': features.field.geometry.sqlid,
         'tbl': features.schema + features.table,
         'attr': attr_select,
         'where_instersects': attr_where,
-        'polygons': polygons_sub,
         'extent': extent_sub,
+        'query_geometry': query_geometry(
+            conn=conn, features=features, polygons_sub=polygons_sub,
+            extent_sub=extent_sub, lod=lods[0]
+        )
     }
-
 
     query = sql.SQL("""
     WITH
          {extent}
          attr_in_extent AS (
-         SELECT {pk} pk,
-                {coid} coid,
-                {attr}
-         FROM {tbl} a
-         {where_instersects}),
+             SELECT {pk} pk,
+                    {coid} coid,
+                    {attr}
+             FROM {tbl} a
+             {where_instersects}),
+         multisurfaces AS ({query_geometry})
+    SELECT *
+    FROM multisurfaces b
+             INNER JOIN attr_in_extent a ON
+        b.pk = a.pk;
+    """).format(**query_params)
+    log.debug(conn.print_query(query))
+    return query
+
+def query_geometry(conn: db.Db, features: db.Schema,
+                   polygons_sub: sql.Composed, extent_sub: sql.Composed,
+                   lod: str):
+    """Parse the PostGIS geometry representation into
+    a CityJSON-like geometry array representation. Here I use
+    several subqueries for sequentially aggregating the vertices,
+    rings and surfaces. I also tested the aggregation with window
+    function calls, but this approach tends to be at least twice
+    as expensive then the subquery-aggregation.
+    In the expand_point subquery, the first vertex is skipped,
+    because PostGIS uses Simple Features so the first vertex is
+    duplicated at the end.
+    """
+    # Main query
+    query_params = {
+        'pk': features.field.pk.sqlid,
+        'coid': features.field.cityobject_id.sqlid,
+        'geometry': getattr(features.field.geometry, lod).sqlid,
+        'tbl': features.schema + features.table,
+        'polygons': polygons_sub,
+        'extent': extent_sub,
+    }
+
+    query = sql.SQL("""
+    WITH
+         {extent}
          {polygons},
          expand_points AS (
              SELECT pk,
@@ -139,22 +181,19 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
              FROM surfaces
              GROUP BY pk)
     SELECT b.pk,
-           b.geom,
-           a.*
+           b.geom
     FROM multisurfaces b
-             INNER JOIN attr_in_extent a ON
-        b.pk = a.pk;
     """).format(**query_params)
     log.debug(conn.print_query(query))
     return query
 
 
-def query_all(features):
+def query_all(features, lod: str) -> Tuple[sql.Composed, ...]:
     """Build a subquery of all the geometry in the table."""
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': features.field.geometry.sqlid,
+        'geometry': getattr(features.field.geometry, lod).sqlid,
         'tbl': features.schema + features.table
     }
     sql_polygons =  sql.SQL("""
@@ -166,18 +205,17 @@ def query_all(features):
             {tbl}
     )
     """).format(**query_params)
-    sql_where_attr_intersects = sql.SQL("")
-    sql_extent = sql.SQL("")
+    sql_where_attr_intersects = sql.Composed("")
+    sql_extent = sql.Composed("")
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
-def query_bbox(features, bbox, epsg):
+def query_bbox(features: db.Schema, bbox: Sequence[float], epsg: int, lod: str) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in a BBOX."""
-    envelope = ','.join(map(str, bbox))
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': features.field.geometry.sqlid,
+        'geometry': getattr(features.field.geometry, lod).sqlid,
         'epsg': sql.Literal(epsg),
         'xmin': sql.Literal(bbox[0]),
         'ymin': sql.Literal(bbox[1]),
@@ -203,16 +241,16 @@ def query_bbox(features, bbox, epsg):
         ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
         )
     """).format(**query_params)
-    sql_extent = sql.SQL("")
+    sql_extent = sql.Composed("")
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
-def query_extent(features, ewkt):
+def query_extent(features: db.Schema, ewkt: str, lod: str) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in a polygon."""
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': features.field.geometry.sqlid,
+        'geometry': getattr(features.field.geometry, lod).sqlid,
         'tbl': features.schema + features.table,
         'poly': sql.Literal(ewkt),
     }
@@ -235,18 +273,20 @@ def query_extent(features, ewkt):
         {poly}
         )
     """).format(**query_params)
-    sql_extent = sql.SQL("")
+    sql_extent = sql.Composed("")
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
-def query_tiles_in_list(features, tile_index, tile_list):
+def query_tiles_in_list(features: db.Schema, tile_index:db.Schema,
+                        tile_list: Sequence[str], lod: str
+                        ) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in the tile list."""
     tl_tup = tuple(tile_list)
     query_params = {
         'tbl': features.schema + features.table,
         'tbl_pk': features.field.pk.sqlid,
         'tbl_coid': features.field.cityobject_id.sqlid,
-        'tbl_geom': features.field.geometry.sqlid,
+        'tbl_geom': getattr(features.field.geometry, lod).sqlid,
         'tile_index': tile_index.schema + tile_index.table,
         'tx_geom': tile_index.field.geometry.sqlid,
         'tx_pk': tile_index.field.pk.sqlid,
@@ -277,7 +317,7 @@ def query_tiles_in_list(features, tile_index, tile_list):
 
 
 def with_list(conn: db.Db, tile_index: db.Schema,
-              tile_list: Tuple[str]) -> Iterable[str]:
+              tile_list: Tuple[str]) -> List[str]:
     """Select tiles based on a list of tile IDs."""
     if 'all' == tile_list[0].lower():
         log.info("Getting all tiles from the index.")
@@ -294,7 +334,7 @@ def with_list(conn: db.Db, tile_index: db.Schema,
 
 
 def tiles_in_index(conn: db.Db, tile_index: db.Schema,
-                   tile_list: Tuple[str]) -> Tuple[Iterable[str], Iterable[str]]:
+                   tile_list: Tuple[str]) -> Tuple[List[str], List[str]]:
     """Return the tile IDs that are present in the tile index."""
     if not isinstance(tile_list, tuple):
         tile_list = tuple(tile_list)
@@ -318,7 +358,7 @@ def tiles_in_index(conn: db.Db, tile_index: db.Schema,
                     f"they are skipped.")
     return in_index
 
-def all_in_index(conn: db.Db, tile_index: db.Schema) -> Iterable[str]:
+def all_in_index(conn: db.Db, tile_index: db.Schema) -> List[str]:
     """Get all tile IDs from the tile index."""
     query_params = {
         'index_': tile_index.schema + tile_index.table,
@@ -366,9 +406,9 @@ def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
                     log.debug(f"CityObject {cotype} from table {cotable['table']}")
                     features = db.Schema(cotable)
                     tx = db.Schema(tile_index)
-                    query = build_query(conn=conn, features=features,
-                                        tile_index=tx, tile_list=tile_list,
-                                        bbox=bbox, extent=extent)
+                    sql_query = build_query(conn=conn, features=features,
+                                            tile_index=tx, tile_list=tile_list,
+                                            bbox=bbox, extent=extent)
                     try:
                         # Note that resultset can be []
                         yield (cotype, cotable['table']), conn.get_dict(query)
@@ -398,12 +438,12 @@ def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
                         log.debug(f"CityObject {cotype} from table {cotable['table']}")
                         features = db.Schema(cotable)
                         tx = db.Schema(tile_index)
-                        query = build_query(conn=conn, features=features,
-                                            tile_index=tx, tile_list=tile_list,
-                                            bbox=bbox, extent=extent)
+                        sql_query = build_query(conn=conn, features=features,
+                                                tile_index=tx, tile_list=tile_list,
+                                                bbox=bbox, extent=extent)
                         # Schedule the DB query for execution and store the returned
                         # Future together with the cotype and table name
-                        future = executor.submit(conn.get_dict, query)
+                        future = executor.submit(conn.get_dict, sql_query)
                         future_to_table[future] = (cotype, tablename)
                         # If I put away the connection here, then it locks the main
                         # thread and it becomes like using a single connection.

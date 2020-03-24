@@ -71,7 +71,7 @@ class TestParsing:
         assert 'Exporting with a list of tiles' in caplog.text
 
 
-@pytest.mark.db3dnl
+#@pytest.mark.db3dnl
 class TestIntegration:
     """Integration tests"""
 
@@ -144,7 +144,7 @@ class TestIntegration:
         caplog.set_level(logging.DEBUG)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
-        cm = db3dnl.convert(dbexport)
+        cm = db3dnl.convert(dbexport, lod='1')
         cm.get_info()
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
             pickle.dump(cm, fo)
@@ -156,7 +156,7 @@ class TestIntegration:
                                 tile_index=cfg_parsed['tile_index'],
                                 cityobject_type=cfg_parsed[
                                     'cityobject_type'], tile_list=['gb2', ])
-        cm = db3dnl.convert(dbexport)
+        cm = db3dnl.convert(dbexport, lod='1')
         cm.get_info()
 
     def test_index(self, data_dir, nl_poly):
@@ -184,6 +184,7 @@ class TestIntegration:
     def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int, data_dir):
         """Test when the tile_index ID is an integer in the database, not a
         string AND the tiles are a list, not a tuple."""
+        lod = cfg_db3dnl_int['lod']
         tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
         tile_list = db3dnl.with_list(conn=db3dnl_db, tile_index=tile_index,
                                      tile_list=('all',))
@@ -204,7 +205,7 @@ class TestIntegration:
                 except BaseException as e:
                     log.error(f"Failed to export tile {str(tile)}\n{e}")
                 log.debug("Submitting process...")
-                future = executor.submit(db3dnl.to_citymodel, dbexport)
+                future = executor.submit(db3dnl.to_citymodel, dbexport, lod)
                 future_to_export[future] = filepath
             for i,future in enumerate(as_completed(future_to_export)):
                 filepath = future_to_export[future]
