@@ -92,3 +92,12 @@ class TestParsing:
     ])
     def test_lod_to_string(self, lod_num, lod_str):
         assert utils.lod_to_string(lod_num) == lod_str
+
+    @pytest.mark.parametrize('lod_key, lod_str', [
+        ('lod0', '0'),
+        ('lod03', '0.3'),
+        ('lod1', '1'),
+        ('lod13', '1.3')
+    ])
+    def test_lod_param(self, lod_key, lod_str):
+        assert utils.parse_lod_value(lod_key) == lod_str

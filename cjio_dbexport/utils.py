@@ -323,3 +323,16 @@ def lod_to_string(lod: Union[int, float]) -> Union[str, None]:
         return str(round(lod, 1))
     else:
         raise ValueError(f"Type {type(lod)} is not allowed as input")
+
+def parse_lod_value(lod_key: str) -> str:
+    """Extract the LoD value from an LoD parameter key (eg. lod13)."""
+    pos = lod_key.lower().find('lod')
+    if pos != 0:
+        raise ValueError(f"The key {lod_key} does not begin with 'lod'")
+    value = lod_key[3:]
+    if len(value) == 1:
+        return value
+    elif len(value) == 2:
+        return f"{value[0]}.{value[1]}"
+    else:
+        raise ValueError(f"Invalid LoD value '{value}' in key {lod_key}")
