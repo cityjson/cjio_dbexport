@@ -80,6 +80,58 @@ def verify_cotypes(cfg: Mapping) -> bool:
     return True
 
 
+def add_lod_keys(cfg: Mapping) -> Mapping:
+    """Add the lod-keys to the geometry fields of cityobject_type.
+
+    If a CityObject mapping doesn't specify the LoD for the geometry, then add
+    the global LoD to the geometry. The database export functions require that
+    the geometry mapping declares the LoD.
+
+    For instance convert this:
+
+    .. code-block::
+
+        lod: 1
+        cityobject_type:
+          Building:
+            - schema: public
+              table: building
+              field:
+                pk: ogc_fid
+                geometry: wkb_geometry
+                cityobject_id: identificatie
+
+    To this:
+
+    .. code-block::
+
+        lod: 1
+        cityobject_type:
+          Building:
+            - schema: public
+              table: building
+              field:
+                pk: ogc_fid
+                geometry:
+                  lod1: wkb_geometry
+                cityobject_id: identificatie
+
+    """
+    cfg_updated = cfg
+    for cotype, relations in cfg['cityobject_type'].items():
+        for i, relation in enumerate(relations):
+            if isinstance(relation['field']['geometry'], str):
+                lod_key = f"lod{cfg['lod']}"
+                cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = {lod_key: relation['field']['geometry']}
+            elif isinstance(relation['field']['geometry'], dict):
+                # it is already the required format
+                pass
+            else:
+                raise ValueError(f"The 'geometry' field mapping must be a string"
+                                 f" or a mapping in {relation}")
+    return cfg_updated
+
+# TODO refactor: move to the top
 def parse_configuration(config: TextIO) -> Mapping:
     """Parse the configuration file.
 
@@ -102,6 +154,12 @@ def parse_configuration(config: TextIO) -> Mapping:
     except KeyError:
         log.exception("Did not find the 'lod' key in the configuration file")
         raise KeyError("Did not find the 'lod' key in the configuration file")
+    except ValueError as e:
+        log.exception(e)
+        raise
+    try:
+        cfg_updated = add_lod_keys(cfg_stream)
+        cfg_stream = cfg_updated
     except ValueError as e:
         log.exception(e)
         raise
