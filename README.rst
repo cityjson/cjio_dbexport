@@ -121,8 +121,8 @@ By default all columns, excluding the three above, are added as Attributes to th
           field:
             pk: ogc_fid
             geometry:
-              - lod12: wkb_geometry
-              - lod13: wkb_geometry_lod13
+              lod12: wkb_geometry
+              lod13: wkb_geometry_lod13
             cityobject_id: identificatie
             exclude: ["xml", "_clipped"]
       WaterBody:
@@ -200,12 +200,12 @@ mapping of the geometry column as here below.
         field:
           pk: ogc_fid
           geometry:
-            - lod0: geom_lod0
-            - lod13: geom_lod13
+            lod0: geom_lod0
+            lod13: geom_lod13
 
 Notice that,
 
-* ``geometry`` becomes an array of key-value pairs instead of a single key-value pair,
+* ``geometry`` becomes a mapping of mappings,
 
 * the keys in ``geometry`` follow the convention of ``lod<value>``, where ``<value>`` is the level of detail,
 

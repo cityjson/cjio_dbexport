@@ -71,7 +71,7 @@ class TestParsing:
         assert 'Exporting with a list of tiles' in caplog.text
 
 
-#@pytest.mark.db3dnl
+@pytest.mark.db3dnl
 class TestIntegration:
     """Integration tests"""
 
@@ -144,7 +144,7 @@ class TestIntegration:
         caplog.set_level(logging.DEBUG)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
-        cm = db3dnl.convert(dbexport, lod='1')
+        cm = db3dnl.convert(dbexport)
         cm.get_info()
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
             pickle.dump(cm, fo)
@@ -156,7 +156,7 @@ class TestIntegration:
                                 tile_index=cfg_parsed['tile_index'],
                                 cityobject_type=cfg_parsed[
                                     'cityobject_type'], tile_list=['gb2', ])
-        cm = db3dnl.convert(dbexport, lod='1')
+        cm = db3dnl.convert(dbexport)
         cm.get_info()
 
     def test_index(self, data_dir, nl_poly):
@@ -181,7 +181,8 @@ class TestIntegration:
     #     tiles = ('1', '2')
 
 
-    def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int, data_dir):
+    def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int,
+                                    data_output_dir):
         """Test when the tile_index ID is an integer in the database, not a
         string AND the tiles are a list, not a tuple."""
         lod = cfg_db3dnl_int['lod']
@@ -193,7 +194,7 @@ class TestIntegration:
             future_to_export = {}
             failed = []
             for tile in tile_list:
-                filepath = (data_dir / str(tile)).with_suffix('.json')
+                filepath = (data_output_dir / str(tile)).with_suffix('.json')
                 try:
                     log.info(f"Exporting tile {str(tile)} from the database")
                     dbexport = db3dnl.query(conn_cfg=cfg_db3dnl_int['database'],
@@ -224,5 +225,24 @@ class TestIntegration:
                     failed.append(filepath.stem)
                 del future_to_export[future]
                 del cm
-        log.info(f"Done. Exported {len(tile_list) - len(failed)} tiles. "
-                   f"Failed {len(failed)} tiles: {failed}")
+        log.info(f"Done. Exported {len(tile_list) - len(failed)} tiles. ")
+        if len(failed) > 0:
+            pytest.fail(f"Failed {len(failed)} tiles: {failed}")
+
+    def test_export_multi_lod(self, db3dnl_db, cfg_parsed_multi):
+        """Test the export of geometry with multiple LoD."""
+        export_gen = db3dnl.query(conn_cfg=cfg_parsed_multi['database'],
+                                  tile_index=cfg_parsed_multi['tile_index'],
+                                  cityobject_type=cfg_parsed_multi[
+                                      'cityobject_type'],
+                                  bbox=[192837.734, 465644.179, 193701.818,
+                                        466898.821],
+                                  threads=1)
+        dbexport = list(export_gen)
+        # db3dnl_db.create_functions()
+        # export_gen = db3dnl.query(conn_cfg=cfg_parsed_multi['database'],
+        #                           tile_index=cfg_parsed_multi['tile_index'],
+        #                           cityobject_type=cfg_parsed_multi[
+        #                               'cityobject_type'],
+        #                           threads=1)
+        # dbexport = list(export_gen)

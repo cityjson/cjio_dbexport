@@ -354,6 +354,7 @@ def sql_cast_geometry(features: db.Schema) -> sql.Composed:
     ]
     return sql.SQL(',').join(lod_fields)
 
+# TODO refactor: move this to the top
 def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
           threads=None,
           tile_list=None, bbox=None, extent=None):
@@ -370,7 +371,7 @@ def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
             for cotype, cotables in cityobject_type.items():
                 for cotable in cotables:
                     tablename = cotable['table']
-                    log.debug(f"CityObject {cotype} from table {cotable['table']}")
+                    log.debug(f"CityObject {cotype} from table {tablename}")
                     features = db.Schema(cotable)
                     tx = db.Schema(tile_index)
                     sql_query = build_query(conn=conn, features=features,
@@ -378,7 +379,7 @@ def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
                                             bbox=bbox, extent=extent)
                     try:
                         # Note that resultset can be []
-                        yield (cotype, cotable['table']), conn.get_dict(query)
+                        yield (cotype, tablename), conn.get_dict(sql_query)
                     except pgError as e:
                         log.error(f"{e.pgcode}\t{e.pgerror}")
                         raise ClickException(
@@ -430,6 +431,7 @@ def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
     else:
         raise ValueError(f"Number of threads must be greater than 0.")
 
+# TODO refactor: delete this
 ### start Multithreading optimisation tests ---
 
 def _query_no_pool(conn_cfg: Mapping, tile_index: db.Schema, cityobject_type: Mapping,
@@ -501,56 +503,12 @@ def _query_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
 
 ### end Multithreading optimisation test ---
 
-def table_to_cityobjects(tabledata, cotype: str, geomtype: str, lod: str):
-    """Converts a database record to a CityObject."""
-    for record in tabledata:
-        coid = record['coid']
-        co = CityObject(id=coid)
-        # Parse the geometry
-        # TODO: refactor geometry parsing into a function
-        geom = Geometry(type=geomtype, lod=lod)
-        if geomtype == 'Solid':
-            solid = [record['geom'],]
-            geom.boundaries = solid
-        elif geomtype == 'MultiSurface':
-            geom.boundaries = record['geom']
-        co.geometry.append(geom)
-        # Parse attributes
-        for key, attr in record.items():
-            if key != 'pk' and key != 'geom' and key != 'coid':
-                if isinstance(attr, datetime):
-                    co.attributes[key] = attr.isoformat()
-                else:
-                    co.attributes[key] = attr
-        # Set the CityObject type
-        co.type = cotype
-        yield coid, co
-
-
-def dbexport_to_cityobjects(dbexport, lod):
-    for coinfo, tabledata in dbexport:
-        cotype, cotable = coinfo
-        if cotype.lower() == 'building':
-            geomtype = 'Solid'
-        else:
-            # FIXME: because CompositeSurface is not supported at the moment
-            #  for semantic surfaces in cjio.models
-            geomtype = 'MultiSurface'
-
-        # Loop through the whole tabledata and create the CityObjects
-        cityobject_generator = table_to_cityobjects(
-            tabledata=tabledata, cotype=cotype, geomtype=geomtype, lod=lod
-        )
-        for coid, co in cityobject_generator:
-            yield coid, co
-
-
-def convert(dbexport, lod: str):
+def convert(dbexport):
     """Convert the exported citymodel to CityJSON."""
     # Set EPSG
     epsg = 7415
     cm = cityjson.CityJSON()
-    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, lod=lod))
+    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport))
     log.debug("Referencing geometry")
     cityobjects, vertex_lookup = cm.reference_geometry()
     log.debug("Adding to json")
@@ -563,6 +521,62 @@ def convert(dbexport, lod: str):
     return cm
 
 
+def dbexport_to_cityobjects(dbexport):
+    for coinfo, tabledata in dbexport:
+        cotype, cotable = coinfo
+        if cotype.lower() == 'building':
+            geomtype = 'Solid'
+        else:
+            # FIXME: because CompositeSurface is not supported at the moment
+            #  for semantic surfaces in cjio.models
+            geomtype = 'MultiSurface'
+
+        # Loop through the whole tabledata and create the CityObjects
+        cityobject_generator = table_to_cityobjects(
+            tabledata=tabledata, cotype=cotype, geomtype=geomtype
+        )
+        for coid, co in cityobject_generator:
+            yield coid, co
+
+
+def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
+    """Converts a database record to a CityObject."""
+    for record in tabledata:
+        coid = record['coid']
+        co = CityObject(id=coid)
+        # Parse the geometry
+        co.geometry = record_to_geometry(record, geomtype)
+        # Parse attributes
+        for key, attr in record.items():
+            if key != 'pk' and key != 'geom' and key != 'coid':
+                if isinstance(attr, datetime):
+                    co.attributes[key] = attr.isoformat()
+                else:
+                    co.attributes[key] = attr
+        # Set the CityObject type
+        co.type = cotype
+        yield coid, co
+
+
+def record_to_geometry(record: Mapping, geomtype: str) -> Sequence[Geometry]:
+    """Create a CityJSON Geometry from a boundary array that was retrieved from
+    Postgres.
+    """
+    geometries = []
+    for field in record:
+        if settings.geom_prefix in field:
+            lod_key = field.replace(settings.geom_prefix, '')
+            lod = utils.parse_lod_value(lod_key)
+            geom = Geometry(type=geomtype, lod=lod)
+            if geomtype == 'Solid':
+                solid = [record[field], ]
+                geom.boundaries = solid
+            elif geomtype == 'MultiSurface':
+                geom.boundaries = record[field]
+            geometries.append(geom)
+    return geometries
+
+# TODO refactor: delete this
 def _to_citymodel(filepath, dbexport) -> Tuple:
     try:
         cm = convert(dbexport)
@@ -582,9 +596,9 @@ def _to_citymodel(filepath, dbexport) -> Tuple:
             return None, None
         return filepath, cm
 
-def to_citymodel(dbexport, lod: str):
+def to_citymodel(dbexport):
     try:
-        cm = convert(dbexport, lod=lod)
+        cm = convert(dbexport)
     except BaseException as e:
         log.error(f"Failed to convert database export to CityJSON\n{e}")
         return None
@@ -611,7 +625,7 @@ def export(tile, filepath, cfg):
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
     try:
-        cm = to_citymodel(dbexport, lod=cfg['lod'])
+        cm = to_citymodel(dbexport)
     finally:
         del dbexport
     if cm is not None:

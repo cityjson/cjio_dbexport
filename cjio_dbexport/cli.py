@@ -87,7 +87,7 @@ def export_all_cmd(ctx, multi_lod, filename):
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
                                     'cityobject_type'])
-        cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
+        cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -138,7 +138,7 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, multi_lod, dir):
                                     tile_index=ctx.obj['cfg']['tile_index'],
                                     cityobject_type=ctx.obj['cfg'][
                                         'cityobject_type'], tile_list=tile_list)
-            cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
+            cm = db3dnl.convert(dbexport)
             cityjson.save(cm, path=filepath, indent=None)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except BaseException as e:
@@ -195,7 +195,7 @@ def export_bbox_cmd(ctx, multi_lod, bbox, filename):
                                 cityobject_type=ctx.obj['cfg'][
                                     'cityobject_type'],
                                 bbox=bbox)
-        cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
+        cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -231,7 +231,7 @@ def export_extent_cmd(ctx, multi_lod, extent, filename):
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
                                     'cityobject_type'], extent=polygon)
-        cm = db3dnl.convert(dbexport, lod=ctx.obj['cfg']['lod'])
+        cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
