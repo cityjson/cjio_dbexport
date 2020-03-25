@@ -223,6 +223,34 @@ then you need to run the export process twice. Once for each LoD,
 by keeping only ``lod0.name.geom_lod0`` or ``lod13.name.geom_lod13`` respectively for the 
 desired LoD.
 
+Global and per-table LoD and geometry type settings
+***************************************************
+
+The global (for the whole file) setting for both the LoD and the output
+geometry type is in the ``geometries`` block in the configuration file. By default each geometry will get the global LoD and geometry type on export.
+
+If you want to export a table to a different geometry type than that of the global setting, then you need to declare it under the corresponding LoD-key in the ``geometry`` mapping of the table.
+
+
+.. code-block::
+
+  geometries:
+    lod: 0
+    type: MultiSurface
+
+  cityobject_type:
+    Building:
+      - schema: public
+        table: building
+        field:
+          pk: ogc_fid
+          geometry:
+            lod0: 
+              name: geom_lod0
+            lod13: 
+              name: geom_lod13
+              type: Solid
+
 
 Creating a tile index
 *********************
