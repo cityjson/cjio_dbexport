@@ -140,11 +140,11 @@ class TestIntegration:
     #     with open(db3dnl_4tiles_pickle, 'wb') as fo:
     #         pickle.dump(dbexport, fo)
 
-    def test_convert(self, data_dir, db3dnl_4tiles_pickle, caplog):
+    def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_parsed, caplog):
         caplog.set_level(logging.DEBUG)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
-        cm = db3dnl.convert(dbexport)
+        cm = db3dnl.convert(dbexport, cfg=cfg_parsed)
         cm.get_info()
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
             pickle.dump(cm, fo)
@@ -155,8 +155,9 @@ class TestIntegration:
         dbexport = db3dnl.query(conn_cfg=cfg_parsed['database'],
                                 tile_index=cfg_parsed['tile_index'],
                                 cityobject_type=cfg_parsed[
-                                    'cityobject_type'], tile_list=['gb2', ])
-        cm = db3dnl.convert(dbexport)
+                                    'cityobject_type'], tile_list=['gb2', ],
+                                threads=1)
+        cm = db3dnl.convert(dbexport, cfg=cfg_parsed)
         cm.get_info()
 
     def test_index(self, data_dir, nl_poly):
@@ -180,7 +181,7 @@ class TestIntegration:
     #     dir = str(data_dir)
     #     tiles = ('1', '2')
 
-
+    @pytest.mark.skip
     def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int,
                                     data_output_dir):
         """Test when the tile_index ID is an integer in the database, not a
@@ -228,21 +229,3 @@ class TestIntegration:
         log.info(f"Done. Exported {len(tile_list) - len(failed)} tiles. ")
         if len(failed) > 0:
             pytest.fail(f"Failed {len(failed)} tiles: {failed}")
-
-    def test_export_multi_lod(self, db3dnl_db, cfg_parsed_multi):
-        """Test the export of geometry with multiple LoD."""
-        export_gen = db3dnl.query(conn_cfg=cfg_parsed_multi['database'],
-                                  tile_index=cfg_parsed_multi['tile_index'],
-                                  cityobject_type=cfg_parsed_multi[
-                                      'cityobject_type'],
-                                  bbox=[192837.734, 465644.179, 193701.818,
-                                        466898.821],
-                                  threads=1)
-        dbexport = list(export_gen)
-        # db3dnl_db.create_functions()
-        # export_gen = db3dnl.query(conn_cfg=cfg_parsed_multi['database'],
-        #                           tile_index=cfg_parsed_multi['tile_index'],
-        #                           cityobject_type=cfg_parsed_multi[
-        #                               'cityobject_type'],
-        #                           threads=1)
-        # dbexport = list(export_gen)

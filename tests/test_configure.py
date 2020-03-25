@@ -88,7 +88,9 @@ class TestConfigure:
     def test_add_lod_param(self):
         """Adding the global LoD parameter to each geometry"""
         cfg = """
-        lod: 1
+        geometries:
+          lod: 1
+          type: MultiSurface
 
         database:
           dbname: cjdb_test
@@ -112,8 +114,11 @@ class TestConfigure:
               field:
                 pk: ogc_fid
                 geometry: 
-                  lod12: geometry_lod12
-                  lod0: geometry_lod0
+                  lod12: 
+                    name: geometry_lod12
+                    type: Solid
+                  lod0: 
+                    name: geometry_lod0
                 cityobject_id: identificatie
                 exclude: ["xml", "_clipped"]
           Road:
@@ -130,13 +135,16 @@ class TestConfigure:
               field:
                 pk: fid
                 geometry:
-                  lod2: geometry_lod2
+                  lod2: 
+                    name: geometry_lod2
                 cityobject_id: coid
         """
         cfg = yaml.load(cfg, Loader=yaml.FullLoader)
 
         expect = """
-        lod: 1
+        geometries:
+          lod: 1
+          type: MultiSurface
 
         database:
           dbname: cjdb_test
@@ -160,8 +168,12 @@ class TestConfigure:
               field:
                 pk: ogc_fid
                 geometry: 
-                  lod12: geometry_lod12
-                  lod0: geometry_lod0
+                  lod12: 
+                    name: geometry_lod12
+                    type: Solid
+                  lod0: 
+                    name: geometry_lod0
+                    type: MultiSurface
                 cityobject_id: identificatie
                 exclude: ["xml", "_clipped"]
           Road:
@@ -170,7 +182,9 @@ class TestConfigure:
               field:
                 pk: ogc_fid
                 geometry: 
-                  lod1: wkb_geometry
+                  lod1: 
+                    name: wkb_geometry
+                    type: MultiSurface
                 cityobject_id: identificatie
                 exclude: ["xml"]
           TINRelief:
@@ -179,7 +193,9 @@ class TestConfigure:
               field:
                 pk: fid
                 geometry:
-                  lod2: geometry_lod2
+                  lod2: 
+                    name: geometry_lod2
+                    type: MultiSurface
                 cityobject_id: coid
         """
         expect = yaml.load(expect, Loader=yaml.FullLoader)

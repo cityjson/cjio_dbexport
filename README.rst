@@ -97,7 +97,9 @@ By default all columns, excluding the three above, are added as Attributes to th
 
 .. code-block::
 
-    lod: 1.2
+    geometries:
+      lod: 1.2
+      type: MultiSurface
 
     database:
       dbname: db3dnl
@@ -121,8 +123,11 @@ By default all columns, excluding the three above, are added as Attributes to th
           field:
             pk: ogc_fid
             geometry:
-              lod12: wkb_geometry
-              lod13: wkb_geometry_lod13
+              lod12: 
+                name: wkb_geometry
+                type: Solid
+              lod13: 
+                name: wkb_geometry_lod13
             cityobject_id: identificatie
             exclude: ["xml", "_clipped"]
       WaterBody:
@@ -200,8 +205,10 @@ mapping of the geometry column as here below.
         field:
           pk: ogc_fid
           geometry:
-            lod0: geom_lod0
-            lod13: geom_lod13
+            lod0: 
+              name: geom_lod0
+            lod13: 
+              name: geom_lod13
 
 Notice that,
 
@@ -209,11 +216,11 @@ Notice that,
 
 * the keys in ``geometry`` follow the convention of ``lod<value>``, where ``<value>`` is the level of detail,
 
-* the ``lod<value>`` keys point to the geometry column with the corresponding LoD
+* the ``lod<value>`` keys are mappings of the geometry column with the corresponding LoD, where the ``name`` key points to the name of the column.
 
 For example if you want to export the LoD0 and LoD1.3 (see yaml above) but write each LoD into a separate file, 
 then you need to run the export process twice. Once for each LoD, 
-by keeping only ``lod0: geom_lod0`` or ``lod13: geom_lod13`` respectively for the 
+by keeping only ``lod0.name.geom_lod0`` or ``lod13.name.geom_lod13`` respectively for the 
 desired LoD.
 
 

@@ -1,4 +1,6 @@
-lod: 1
+geometries:
+  lod: 1
+  type: MultiSurface
 
 database:
   dbname: cjdb_test

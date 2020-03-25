@@ -54,12 +54,13 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
         exclude = [f.string for f in features.field.exclude if f is not None]
     else:
         exclude = []
+    geom_cols = [getattr(features.field.geometry, lod).name.string
+                 for lod in features.field.geometry.keys()]
     attr_select = sql.SQL(', ').join(sql.Identifier(col) for col in table_fields
                                      if col != features.field.pk.string and
-                                     col not in features.field.geometry.values() and
+                                     col not in geom_cols and
                                      col != features.field.cityobject_id.string and
                                      col not in exclude)
-    lods = list(features.field.geometry.keys())
     # polygons subquery
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
@@ -145,7 +146,7 @@ def query_bbox(features: db.Schema, bbox: Sequence[float], epsg: int) -> Tuple[s
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
         'geometries': sql_cast_geometry(features),
-        'geometry_0': getattr(features.field.geometry, lod).sqlid,
+        'geometry_0': getattr(features.field.geometry, lod).name.sqlid,
         'epsg': sql.Literal(epsg),
         'xmin': sql.Literal(bbox[0]),
         'ymin': sql.Literal(bbox[1]),
@@ -187,7 +188,7 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
         'geometries': sql_cast_geometry(features),
-        'geometry_0': getattr(features.field.geometry, lod).sqlid,
+        'geometry_0': getattr(features.field.geometry, lod).name.sqlid,
         'tbl': features.schema + features.table,
         'poly': sql.Literal(ewkt),
     }
@@ -229,7 +230,7 @@ def query_tiles_in_list(features: db.Schema, tile_index:db.Schema,
         'tbl': features.schema + features.table,
         'tbl_pk': features.field.pk.sqlid,
         'tbl_coid': features.field.cityobject_id.sqlid,
-        'tbl_geom': getattr(features.field.geometry, lod).sqlid,
+        'tbl_geom': getattr(features.field.geometry, lod).name.sqlid,
         'geometries': sql_cast_geometry(features),
         'tile_index': tile_index.schema + tile_index.table,
         'tx_geom': tile_index.field.geometry.sqlid,
@@ -348,7 +349,7 @@ def sql_cast_geometry(features: db.Schema) -> sql.Composed:
     lod_fields = [
         sql.SQL(
             "cjdb_multipolygon_to_multisurface({geom_field}) {geom_alias}"
-        ).format(geom_field=getattr(features.field.geometry, lod).sqlid,
+        ).format(geom_field=getattr(features.field.geometry, lod).name.sqlid,
                  geom_alias=sql.Identifier(settings.geom_prefix + lod))
         for lod in features.field.geometry.keys()
     ]
@@ -503,12 +504,12 @@ def _query_single(conn: db.Db, cfg: Mapping, tile_list=None, bbox=None,
 
 ### end Multithreading optimisation test ---
 
-def convert(dbexport):
-    """Convert the exported citymodel to CityJSON."""
+def convert(dbexport, cfg):
+    """Convert the exported citymodel to CityJSON. """
     # Set EPSG
     epsg = 7415
     cm = cityjson.CityJSON()
-    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport))
+    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg))
     log.debug("Referencing geometry")
     cityobjects, vertex_lookup = cm.reference_geometry()
     log.debug("Adding to json")
@@ -521,34 +522,31 @@ def convert(dbexport):
     return cm
 
 
-def dbexport_to_cityobjects(dbexport):
+def dbexport_to_cityobjects(dbexport, cfg):
     for coinfo, tabledata in dbexport:
         cotype, cotable = coinfo
-        if cotype.lower() == 'building':
-            geomtype = 'Solid'
-        else:
-            # FIXME: because CompositeSurface is not supported at the moment
-            #  for semantic surfaces in cjio.models
-            geomtype = 'MultiSurface'
-
+        cfg_geom = None
+        for _c in cfg['cityobject_type'][cotype]:
+            if _c['table'] == cotable:
+                cfg_geom = _c['field']['geometry']
         # Loop through the whole tabledata and create the CityObjects
-        cityobject_generator = table_to_cityobjects(
-            tabledata=tabledata, cotype=cotype, geomtype=geomtype
-        )
+        cityobject_generator = table_to_cityobjects(tabledata=tabledata,
+                                                    cotype=cotype,
+                                                    cfg_geom=cfg_geom)
         for coid, co in cityobject_generator:
             yield coid, co
 
 
-def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
+def table_to_cityobjects(tabledata, cotype: str, cfg_geom: Mapping):
     """Converts a database record to a CityObject."""
     for record in tabledata:
         coid = record['coid']
         co = CityObject(id=coid)
         # Parse the geometry
-        co.geometry = record_to_geometry(record, geomtype)
+        co.geometry = record_to_geometry(record, cfg_geom)
         # Parse attributes
         for key, attr in record.items():
-            if key != 'pk' and key != 'geom' and key != 'coid':
+            if key != 'pk' and 'geom_' not in key and key != 'coid':
                 if isinstance(attr, datetime):
                     co.attributes[key] = attr.isoformat()
                 else:
@@ -558,7 +556,7 @@ def table_to_cityobjects(tabledata, cotype: str, geomtype: str):
         yield coid, co
 
 
-def record_to_geometry(record: Mapping, geomtype: str) -> Sequence[Geometry]:
+def record_to_geometry(record: Mapping, cfg_geom: Mapping) -> Sequence[Geometry]:
     """Create a CityJSON Geometry from a boundary array that was retrieved from
     Postgres.
     """
@@ -567,6 +565,7 @@ def record_to_geometry(record: Mapping, geomtype: str) -> Sequence[Geometry]:
         if settings.geom_prefix in field:
             lod_key = field.replace(settings.geom_prefix, '')
             lod = utils.parse_lod_value(lod_key)
+            geomtype = cfg_geom[lod_key]['type']
             geom = Geometry(type=geomtype, lod=lod)
             if geomtype == 'Solid':
                 solid = [record[field], ]
@@ -576,29 +575,10 @@ def record_to_geometry(record: Mapping, geomtype: str) -> Sequence[Geometry]:
             geometries.append(geom)
     return geometries
 
-# TODO refactor: delete this
-def _to_citymodel(filepath, dbexport) -> Tuple:
-    try:
-        cm = convert(dbexport)
-    except BaseException as e:
-        log.error(f"Failed to convert export to CityJSON\n{e}")
-        return filepath, None
-    if cm:
-        try:
-            cm.remove_duplicate_vertices()
-        except BaseException as e:
-            log.error(f"Failed to remove duplicate vertices\n{e}")
-            return filepath, None
-        try:
-            cm.remove_orphan_vertices()
-        except BaseException as e:
-            log.error(f"Failed to remove orphan vertices\n{e}")
-            return None, None
-        return filepath, cm
 
-def to_citymodel(dbexport):
+def to_citymodel(dbexport, cfg):
     try:
-        cm = convert(dbexport)
+        cm = convert(dbexport, cfg=cfg)
     except BaseException as e:
         log.error(f"Failed to convert database export to CityJSON\n{e}")
         return None
@@ -625,7 +605,7 @@ def export(tile, filepath, cfg):
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
     try:
-        cm = to_citymodel(dbexport)
+        cm = to_citymodel(dbexport, cfg=cfg)
     finally:
         del dbexport
     if cm is not None:
