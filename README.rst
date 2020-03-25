@@ -211,8 +211,10 @@ Notice that,
 
 * the ``lod<value>`` keys point to the geometry column with the corresponding LoD
 
-By default each LoD is written to a separate file. by using the ``--multi-lod`` 
-command line option it is possible to write all the LoDs to a single file.
+For example if you want to export the LoD0 and LoD1.3 (see yaml above) but write each LoD into a separate file, 
+then you need to run the export process twice. Once for each LoD, 
+by keeping only ``lod0: geom_lod0`` or ``lod13: geom_lod13`` respectively for the 
+desired LoD.
 
 
 Creating a tile index
@@ -246,7 +248,7 @@ accordingly,
 Limitations
 ------------
 
-+ Hardcoded to LoD 1, no semantics, no appearances
++ Only LoD0-1, no semantics, no appearances
 
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
 
