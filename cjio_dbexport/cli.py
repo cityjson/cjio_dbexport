@@ -79,6 +79,8 @@ def export_all_cmd(ctx, multi_lod, filename):
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting the whole database")
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
@@ -110,11 +112,12 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, multi_lod, dir):
 
     DIR is the path to the output directory.
     """
-    log = ctx.obj['log']
     path = Path(dir).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
     try:
         tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
@@ -183,6 +186,8 @@ def export_bbox_cmd(ctx, multi_lod, bbox, filename):
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting with BBOX={bbox}")
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
@@ -218,6 +223,8 @@ def export_extent_cmd(ctx, multi_lod, extent, filename):
 
     polygon = cjio_dbexport.utils.read_geojson_polygon(extent)
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting with polygonal selection. Polygon={extent.name}")
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],

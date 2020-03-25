@@ -35,7 +35,7 @@ from cjio import cityjson
 from cjio.models import CityObject, Geometry
 from psycopg2 import sql, pool, Error as pgError
 
-from cjio_dbexport import db, utils
+from cjio_dbexport import settings, db, utils
 
 log = logging.getLogger(__name__)
 
@@ -63,26 +63,22 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
     # polygons subquery
     if bbox:
         log.info(f"Exporting with BBOX {bbox}")
-        polygons_sub, attr_where, extent_sub = query_bbox(features, bbox, epsg,
-                                                          lod=lods[0])
+        polygons_sub, attr_where, extent_sub = query_bbox(features, bbox, epsg)
     elif tile_list:
         log.info(f"Exporting with a list of tiles {tile_list}")
         polygons_sub, attr_where, extent_sub = query_tiles_in_list(
             features=features,
             tile_index=tile_index,
-            tile_list=tile_list,
-            lod=lods[0]
+            tile_list=tile_list
         )
     elif extent:
         log.info(f"Exporting with polygon extent")
         ewkt = utils.to_ewkt(polygon=extent, srid=epsg)
         polygons_sub, attr_where, extent_sub = query_extent(features=features,
-                                                            ewkt=ewkt,
-                                                            lod=lods[0])
+                                                            ewkt=ewkt)
     else:
         log.info(f"Exporting the whole database")
-        polygons_sub, attr_where, extent_sub = query_all(features=features,
-                                                         lod=lods[0])
+        polygons_sub, attr_where, extent_sub = query_all(features=features)
 
     # Main query
     query_params = {
@@ -92,10 +88,7 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
         'attr': attr_select,
         'where_instersects': attr_where,
         'extent': extent_sub,
-        'query_geometry': query_geometry(
-            conn=conn, features=features, polygons_sub=polygons_sub,
-            extent_sub=extent_sub, lod=lods[0]
-        )
+        'polygons': polygons_sub
     }
 
     query = sql.SQL("""
@@ -106,116 +99,53 @@ def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema,
                     {coid} coid,
                     {attr}
              FROM {tbl} a
-             {where_instersects}),
-         multisurfaces AS ({query_geometry})
+             {where_instersects}
+         ),
+         {polygons}
     SELECT *
-    FROM multisurfaces b
+    FROM polygons b
              INNER JOIN attr_in_extent a ON
         b.pk = a.pk;
     """).format(**query_params)
     log.debug(conn.print_query(query))
     return query
 
-def query_geometry(conn: db.Db, features: db.Schema,
-                   polygons_sub: sql.Composed, extent_sub: sql.Composed,
-                   lod: str):
-    """Parse the PostGIS geometry representation into
-    a CityJSON-like geometry array representation. Here I use
-    several subqueries for sequentially aggregating the vertices,
-    rings and surfaces. I also tested the aggregation with window
-    function calls, but this approach tends to be at least twice
-    as expensive then the subquery-aggregation.
-    In the expand_point subquery, the first vertex is skipped,
-    because PostGIS uses Simple Features so the first vertex is
-    duplicated at the end.
-    """
-    # Main query
-    query_params = {
-        'pk': features.field.pk.sqlid,
-        'coid': features.field.cityobject_id.sqlid,
-        'geometry': getattr(features.field.geometry, lod).sqlid,
-        'tbl': features.schema + features.table,
-        'polygons': polygons_sub,
-        'extent': extent_sub,
-    }
 
-    query = sql.SQL("""
-    WITH
-         {extent}
-         {polygons},
-         expand_points AS (
-             SELECT pk,
-                    (geom).PATH[1]         exterior,
-                    (geom).PATH[2]         interior,
-                    (geom).PATH[3]         vertex,
-                    ARRAY [ST_X((geom).geom),
-                        ST_Y((geom).geom),
-                        ST_Z((geom).geom)] point
-             FROM polygons
-             WHERE (geom).PATH[3] > 1
-             ORDER BY pk,
-                      exterior,
-                      interior,
-                      vertex),
-         rings AS (
-             SELECT pk,
-                    exterior,
-                    interior,
-                    ARRAY_AGG(point) geom
-             FROM expand_points
-             GROUP BY interior,
-                      exterior,
-                      pk
-             ORDER BY exterior,
-                      interior),
-         surfaces AS (
-             SELECT pk,
-                    ARRAY_AGG(geom) geom
-             FROM rings
-             GROUP BY exterior,
-                      pk
-             ORDER BY exterior),
-         multisurfaces AS (
-             SELECT pk,
-                    ARRAY_AGG(geom) geom
-             FROM surfaces
-             GROUP BY pk)
-    SELECT b.pk,
-           b.geom
-    FROM multisurfaces b
-    """).format(**query_params)
-    log.debug(conn.print_query(query))
-    return query
-
-
-def query_all(features, lod: str) -> Tuple[sql.Composed, ...]:
+def query_all(features) -> Tuple[sql.Composed, ...]:
     """Build a subquery of all the geometry in the table."""
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': getattr(features.field.geometry, lod).sqlid,
-        'tbl': features.schema + features.table
+        'tbl': features.schema + features.table,
+        'geometries': sql_cast_geometry(features)
     }
-    sql_polygons =  sql.SQL("""
+
+    sql_polygons = sql.SQL("""
     polygons AS (
         SELECT
-            {pk}                      pk,
-            ST_DumpPoints({geometry}) geom
+            {pk}    pk,
+            {geometries}
         FROM 
             {tbl}
     )
     """).format(**query_params)
+
     sql_where_attr_intersects = sql.Composed("")
+
     sql_extent = sql.Composed("")
+
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
-def query_bbox(features: db.Schema, bbox: Sequence[float], epsg: int, lod: str) -> Tuple[sql.Composed, ...]:
+def query_bbox(features: db.Schema, bbox: Sequence[float], epsg: int) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in a BBOX."""
+    # One geometry column is enough to restrict the selection to the BBOX
+    lod = list(features.field.geometry.keys())[0]
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': getattr(features.field.geometry, lod).sqlid,
+        'geometries': sql_cast_geometry(features),
+        'geometry_0': getattr(features.field.geometry, lod).sqlid,
         'epsg': sql.Literal(epsg),
         'xmin': sql.Literal(bbox[0]),
         'ymin': sql.Literal(bbox[1]),
@@ -223,81 +153,97 @@ def query_bbox(features: db.Schema, bbox: Sequence[float], epsg: int, lod: str) 
         'ymax': sql.Literal(bbox[3]),
         'tbl': features.schema + features.table
     }
+
     sql_polygons = sql.SQL("""
     polygons AS (
-        SELECT {pk}                      pk,
-               ST_DumpPoints({geometry}) geom
+        SELECT {pk}     pk,
+               {geometries}
         FROM
             {tbl}
         WHERE ST_Intersects(
-            {geometry},
+            {geometry_0},
             ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
             )
     )
     """).format(**query_params)
+
     sql_where_attr_intersects = sql.SQL("""
     WHERE ST_Intersects(
-        a.{geometry},
+        a.{geometry_0},
         ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
         )
     """).format(**query_params)
+
     sql_extent = sql.Composed("")
+
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
-def query_extent(features: db.Schema, ewkt: str, lod: str) -> Tuple[sql.Composed, ...]:
+def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in a polygon."""
+    # One geometry column is enough to restrict the selection to the BBOX
+    lod = list(features.field.geometry.keys())[0]
     query_params = {
         'pk': features.field.pk.sqlid,
         'coid': features.field.cityobject_id.sqlid,
-        'geometry': getattr(features.field.geometry, lod).sqlid,
+        'geometries': sql_cast_geometry(features),
+        'geometry_0': getattr(features.field.geometry, lod).sqlid,
         'tbl': features.schema + features.table,
         'poly': sql.Literal(ewkt),
     }
+
     sql_polygons = sql.SQL("""
     polygons AS (
         SELECT
-            {pk}                      pk,
-            ST_DumpPoints({geometry}) geom
+            {pk}    pk,
+            {geometries}
         FROM
             {tbl}
         WHERE ST_Intersects(
-            {geometry},
+            {geometry_0},
             {poly}
             )
     )
     """).format(**query_params)
+
     sql_where_attr_intersects = sql.SQL("""
     WHERE ST_Intersects(
-        a.{geometry},
+        a.{geometry_0},
         {poly}
         )
     """).format(**query_params)
+
     sql_extent = sql.Composed("")
+
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
 def query_tiles_in_list(features: db.Schema, tile_index:db.Schema,
-                        tile_list: Sequence[str], lod: str
+                        tile_list: Sequence[str]
                         ) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in the tile list."""
     tl_tup = tuple(tile_list)
+    # One geometry column is enough to restrict the selection to the BBOX
+    lod = list(features.field.geometry.keys())[0]
     query_params = {
         'tbl': features.schema + features.table,
         'tbl_pk': features.field.pk.sqlid,
         'tbl_coid': features.field.cityobject_id.sqlid,
         'tbl_geom': getattr(features.field.geometry, lod).sqlid,
+        'geometries': sql_cast_geometry(features),
         'tile_index': tile_index.schema + tile_index.table,
         'tx_geom': tile_index.field.geometry.sqlid,
         'tx_pk': tile_index.field.pk.sqlid,
         'tile_list': sql.Literal(tl_tup)
     }
+
     sql_extent = sql.SQL("""
     extent AS (
         SELECT ST_Union({tx_geom}) geom
         FROM {tile_index}
         WHERE {tx_pk} IN {tile_list}),
     """).format(**query_params)
+
     sql_polygon = sql.SQL("""
     geom_in_extent AS (
         SELECT a.*
@@ -306,13 +252,16 @@ def query_tiles_in_list(features: db.Schema, tile_index:db.Schema,
         WHERE ST_Intersects(t.geom,
                             a.{tbl_geom})),
     polygons AS (
-        SELECT {tbl_pk}                  pk,
-            ST_DumpPoints({tbl_geom}) geom
+        SELECT 
+            {tbl_pk} pk,
+            {geometries}
         FROM geom_in_extent b)
     """).format(**query_params)
+
     sql_where_attr_intersects = sql.SQL("""
     ,extent t WHERE ST_Intersects(t.geom, a.{tbl_geom})
     """).format(**query_params)
+
     return sql_polygon, sql_where_attr_intersects, sql_extent
 
 
@@ -386,6 +335,24 @@ def parse_polygonz(wkt_polygonz):
     else:
         log.error("Not a POLYGON Z")
 
+def sql_cast_geometry(features: db.Schema) -> sql.Composed:
+    """Create a clause for SELECT statements for the geometry columns.
+
+    For each geometry column in the table (one column per LoD) that is mapped in
+    the configuration file, prepare the clauses for the SELECT statement.
+
+    :return: An SQL snippent for example:
+        'cjdb_multipolygon_to_multisurface(wkb_geometry_lod1) geom_lod1,
+         cjdb_multipolygon_to_multisurface(wkb_geometry_lod2) geom_lod2'
+    """
+    lod_fields = [
+        sql.SQL(
+            "cjdb_multipolygon_to_multisurface({geom_field}) {geom_alias}"
+        ).format(geom_field=getattr(features.field.geometry, lod).sqlid,
+                 geom_alias=sql.Identifier(settings.geom_prefix + lod))
+        for lod in features.field.geometry.keys()
+    ]
+    return sql.SQL(',').join(lod_fields)
 
 def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
           threads=None,
