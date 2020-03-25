@@ -77,14 +77,15 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
 
 
 This tool uses a YAML-based configuration file to managing the database
-connections and declaring what to export. The block ``database`` specifies
-the database connection parameters. The block ``cityobject_type`` maps the
-database tables to CityObject types. Each key in ``cityobject_type`` is a
-`1st-level or 2nd-level CityObject <https://www.cityjson.org/specs/1.0
-.1/#city-object>`_, and it contains a sequence of mappings. Each of these
-mappings refer to a single table, thus you can collect CityObjects from
-several tables into a single CityObject type.
-The ``table`` is exported as **one record per CityObject**.
+connections and to declare what to export.
+
+* The block ``lod`` declares the Level of Detail of the CityObjects.
+
+* The block ``database`` specifies the database connection parameters.
+
+* The block ``cityobject_type`` maps the database tables to CityObject types.
+
+* Each key in ``cityobject_type`` is a `1st-level or 2nd-level CityObject<https://www.cityjson.org/specs/1.0.1/#city-object>`_, and it contains a sequence of mappings. Each of these mappings refer to a single table, thus you can collect CityObjects from several tables into a single CityObject type. The ``table`` is exported as **one record per CityObject**.
 
 The mapping of the fields of the table to CityObjects is done as:
 
@@ -95,6 +96,8 @@ The mapping of the fields of the table to CityObjects is done as:
 By default all columns, excluding the three above, are added as Attributes to the CityObject. If you want to exclude certain fields, specify the filed names in a string array in ``exclude``. In the example below, the fields ``xml`` and ``_clipped`` are excluded from the export.
 
 .. code-block::
+
+    lod: 1.2
 
     database:
       dbname: db3dnl
@@ -112,6 +115,16 @@ By default all columns, excluding the three above, are added as Attributes to th
         geometry: geom
 
     cityobject_type:
+      Building:
+        - schema: public
+          table: building
+          field:
+            pk: ogc_fid
+            geometry:
+              lod12: wkb_geometry
+              lod13: wkb_geometry_lod13
+            cityobject_id: identificatie
+            exclude: ["xml", "_clipped"]
       WaterBody:
         - schema: public
           table: waterdeel_vlak
@@ -164,6 +177,46 @@ tiles from the *tile index*, then pass ``all`` as the tile ID.
 
     $ cjdb config.yml export_tiles ci1 ci2 gb4 path/to/directory
 
+Exporting citymodels in multiple Level of Detail (LoD)
+******************************************************
+
+The ``lod`` parameter in the YAML configuration file declares the LoD value 
+that each CityObject will get in the output file. However, in case you have 
+objects with multiple geometric representations (multiple LoD), you can 
+choose to export the each LoD into the same file or write a separate file 
+for each LoD.
+
+For instance we have a table that stores building models and each building 
+has a geometry in LoD0 and LoD1.3. Note that this is the case of single 
+table with multiple geometry columns. In this case we can declare the 
+mapping of the geometry column as here below.
+
+.. code-block::
+
+  cityobject_type:
+    Building:
+      - schema: public
+        table: building
+        field:
+          pk: ogc_fid
+          geometry:
+            lod0: geom_lod0
+            lod13: geom_lod13
+
+Notice that,
+
+* ``geometry`` becomes a mapping of mappings,
+
+* the keys in ``geometry`` follow the convention of ``lod<value>``, where ``<value>`` is the level of detail,
+
+* the ``lod<value>`` keys point to the geometry column with the corresponding LoD
+
+For example if you want to export the LoD0 and LoD1.3 (see yaml above) but write each LoD into a separate file, 
+then you need to run the export process twice. Once for each LoD, 
+by keeping only ``lod0: geom_lod0`` or ``lod13: geom_lod13`` respectively for the 
+desired LoD.
+
+
 Creating a tile index
 *********************
 
@@ -195,7 +248,7 @@ accordingly,
 Limitations
 ------------
 
-+ Hardcoded to LoD 1, no semantics, no appearances
++ Only LoD0-1, no semantics, no appearances
 
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
 

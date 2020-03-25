@@ -2,6 +2,13 @@
 History
 =======
 
+0.6.0
+-----
+
+* Possible to export multiple LoD when the different LoDs are stored in the same table
+* BREAKING: the ``lod`` key is required in the YAML configuration file
+* Creates the ``cjdb_multipolygon_to_multisurface(geometry)`` SQL function
+
 0.1.0 (2019-12-16)
 ------------------
 

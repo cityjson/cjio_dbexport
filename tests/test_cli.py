@@ -23,7 +23,27 @@ def test_command_line_interface():
 
 @pytest.mark.db3dnl
 class TestDb3DNLIntegration:
-    def test_export_tiles(self, data_dir, cfg_db3dnl_path, capsys):
+    def test_export_tiles_multi_lod(self, data_dir, cfg_db3dnl_multi_path, capsys):
+        """Test the CLI."""
+        runner = CliRunner()
+        result = runner.invoke(cli.main)
+        assert result.exit_code == 0
+        export_result = runner.invoke(cli.main, [
+            str(cfg_db3dnl_multi_path),
+            'export_tiles',
+            '--jobs', '4',
+            'gb1', 'ic3', 'kh7', 'ec4',
+            str(data_dir / 'output_multi')
+        ])
+        if export_result.exit_code != 0:
+            log.error(export_result.stderr_bytes)
+            log.exception(export_result.exception)
+            pytest.fail()
+        if any(True for res in ['ERROR', 'CRITICAL', 'FATAL']
+               if res in export_result.output):
+                pytest.fail()
+
+    def test_export_tiles(self, data_output_dir, cfg_db3dnl_path, capsys):
         """Test the CLI."""
         runner = CliRunner()
         result = runner.invoke(cli.main)
@@ -33,15 +53,17 @@ class TestDb3DNLIntegration:
             'export_tiles',
             '--jobs', '4',
             'gb1', 'ic3', 'kh7', 'ec4',
-            str(data_dir)
+            str(data_output_dir)
         ])
-        # log.info(f"\n{export_result.output}")
         if export_result.exit_code != 0:
             log.error(export_result.stderr_bytes)
             log.exception(export_result.exception)
             pytest.fail()
+        if any(True for res in ['ERROR', 'CRITICAL', 'FATAL']
+               if res in export_result.output):
+                pytest.fail()
 
-    def test_export_tiles_merge(self, data_dir, cfg_db3dnl_path, capsys):
+    def test_export_tiles_merge(self, data_output_dir, cfg_db3dnl_path, capsys):
         """Test the CLI."""
         runner = CliRunner()
         result = runner.invoke(cli.main)
@@ -52,19 +74,22 @@ class TestDb3DNLIntegration:
             '--merge',
             '--jobs', '4',
             'gb1', 'ic3', 'kh7', 'ec4',
-            str(data_dir)
+            str(data_output_dir)
         ])
         if export_result.exit_code != 0:
             log.error(export_result.stderr_bytes)
             log.exception(export_result.exception)
             pytest.fail()
+        if any(True for res in ['ERROR', 'CRITICAL', 'FATAL']
+               if res in export_result.output):
+                pytest.fail()
 
-    def test_export(self, data_dir, cfg_db3dnl_path):
+    def test_export(self, data_output_dir, cfg_db3dnl_path):
         """Test the CLI."""
         runner = CliRunner()
         result = runner.invoke(cli.main)
         assert result.exit_code == 0
-        outfile = str(data_dir / 'test.json')
+        outfile = str(data_output_dir / 'test.json')
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path),
             'export',
@@ -75,12 +100,10 @@ class TestDb3DNLIntegration:
             log.exception(export_result.exception)
             pytest.fail()
 
-    def test_export_bbox(self, data_dir, cfg_db3dnl_path):
+    def test_export_bbox(self, data_output_dir, cfg_db3dnl_path):
         """Test the CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
-        outfile = str(data_dir / 'test_bbox.json')
+        outfile = str(data_output_dir / 'test_bbox.json')
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path),
             'export_bbox',
@@ -92,16 +115,16 @@ class TestDb3DNLIntegration:
             log.exception(export_result.exception)
             pytest.fail()
 
-    def test_export_extent(self, data_dir, cfg_db3dnl_path, nl_poly_path):
+    def test_export_extent(self, data_output_dir, cfg_db3dnl_path, db3dnl_poly_geojson):
         """Test the CLI."""
         runner = CliRunner()
         result = runner.invoke(cli.main)
         assert result.exit_code == 0
-        outfile = str(data_dir / 'test_poly.json')
+        outfile = str(data_output_dir / 'test_poly.json')
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path),
             'export_extent',
-            str(nl_poly_path),
+            str(db3dnl_poly_geojson),
             outfile
         ])
         if export_result.exit_code != 0:
@@ -109,7 +132,7 @@ class TestDb3DNLIntegration:
             log.exception(export_result.exception)
             pytest.fail()
 
-    def test_index(self, data_dir, nl_poly_path, cfg_cjdb_path):
+    def test_index(self, nl_poly_path, cfg_cjdb_path):
         """Test the CLI."""
         runner = CliRunner()
         result = runner.invoke(cli.main)

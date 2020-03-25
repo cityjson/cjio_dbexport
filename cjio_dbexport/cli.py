@@ -29,6 +29,7 @@ import sys
 from pathlib import Path
 from io import StringIO
 from concurrent.futures import ProcessPoolExecutor, as_completed
+from multiprocessing import freeze_support
 
 from psycopg2 import Error as pgError
 from psycopg2 import sql
@@ -77,6 +78,10 @@ def export_all_cmd(ctx, filename):
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException(
+            "Could not create the required functions in PostgreSQL, "
+            "check the logs for details")
     try:
         click.echo(f"Exporting the whole database")
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
@@ -107,11 +112,12 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
 
     DIR is the path to the output directory.
     """
-    log = ctx.obj['log']
     path = Path(dir).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
     try:
         tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
@@ -178,12 +184,15 @@ def export_bbox_cmd(ctx, bbox, filename):
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting with BBOX={bbox}")
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'])
+                                    'cityobject_type'],
+                                bbox=bbox)
         cm = db3dnl.convert(dbexport)
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
@@ -211,6 +220,8 @@ def export_extent_cmd(ctx, extent, filename):
 
     polygon = cjio_dbexport.utils.read_geojson_polygon(extent)
     conn = db.Db(**ctx.obj['cfg']['database'])
+    if not conn.create_functions():
+        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting with polygonal selection. Polygon={extent.name}")
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
@@ -364,4 +375,5 @@ main.add_command(export_tiles_cmd)
 main.add_command(index_cmd)
 
 if __name__ == "__main__":
+    freeze_support()
     sys.exit(main())  # pragma: no cover

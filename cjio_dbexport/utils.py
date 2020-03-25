@@ -26,7 +26,7 @@ SOFTWARE.
 import json
 import math
 from statistics import mean
-from typing import Iterable, Tuple, Mapping, TextIO
+from typing import Iterable, Tuple, Mapping, TextIO, Union
 import logging
 
 log = logging.getLogger(__name__)
@@ -310,3 +310,32 @@ def to_ewkt(polygon, srid) -> str:
     ring = [" ".join(map(str, i)) for i in polygon[0]]
     ewkt = f'SRID={srid};POLYGON(({",".join(ring)}))'
     return ewkt
+
+def lod_to_string(lod: Union[int, float]) -> Union[str, None]:
+    """Convert and LoD integer or float to string."""
+    if lod is None:
+        return None
+    elif isinstance(lod, str):
+        return lod
+    elif isinstance(lod, int):
+        return str(lod)
+    elif isinstance(lod, float):
+        return str(round(lod, 1))
+    else:
+        raise ValueError(f"Type {type(lod)} is not allowed as input")
+
+def parse_lod_value(lod_key: str) -> str:
+    """Extract the LoD value from an LoD parameter key (eg. lod13).
+
+    For example 'lod13' -> '1.3'
+    """
+    pos = lod_key.lower().find('lod')
+    if pos != 0:
+        raise ValueError(f"The key {lod_key} does not begin with 'lod'")
+    value = lod_key[3:]
+    if len(value) == 1:
+        return value
+    elif len(value) == 2:
+        return f"{value[0]}.{value[1]}"
+    else:
+        raise ValueError(f"Invalid LoD value '{value}' in key {lod_key}")

@@ -40,6 +40,11 @@ def t_dir():
 def data_dir(t_dir):
     yield t_dir / 'data'
 
+@pytest.fixture('session')
+def data_output_dir(t_dir):
+    outdir = t_dir / 'data' / 'output'
+    outdir.mkdir(exist_ok=True)
+    yield outdir
 
 @pytest.fixture('session')
 def root_dir(t_dir):
@@ -50,15 +55,25 @@ def root_dir(t_dir):
 def package_dir(root_dir):
     yield root_dir / 'cjio_dbexport'
 
-# -------------------------------------------------------------------- testing DB
+# ------------------------------------------------------------------- testing DB
 
 @pytest.fixture(scope='function')
 def cfg_db3dnl_path(data_dir):
     yield data_dir / 'db3dnl_config.yml'
 
 @pytest.fixture(scope='function')
+def cfg_db3dnl_multi_path(data_dir):
+    yield data_dir / 'db3dnl_config_multi_lod.yml'
+
+@pytest.fixture(scope='function')
 def cfg_parsed(cfg_db3dnl_path):
     with open(cfg_db3dnl_path, 'r') as fo:
+        c = configure.parse_configuration(fo)
+        yield c
+
+@pytest.fixture(scope='function')
+def cfg_parsed_multi(cfg_db3dnl_multi_path):
+    with open(cfg_db3dnl_multi_path, 'r') as fo:
         c = configure.parse_configuration(fo)
         yield c
 
@@ -73,6 +88,10 @@ def cfg_db3dnl_int(data_dir):
 def db3dnl_poly(data_dir):
     with open(data_dir / 'db3dnl_poly.pickle', 'rb') as fo:
         yield pickle.load(fo)
+
+@pytest.fixture(scope='function')
+def db3dnl_poly_geojson(data_dir):
+    yield data_dir / 'db3dnl_poly.geojson'
 
 @pytest.fixture(scope='function')
 def db3dnl_4tiles_pickle(data_dir):
@@ -98,6 +117,8 @@ def nl_poly(nl_poly_path):
 def nl_multi(data_dir):
     with open(data_dir / 'nl_multi.geojson', 'r') as fo:
         yield fo
+
+# ------------------------------------------------------------------------- cjdb
 
 @pytest.fixture(scope='function')
 def cfg_cjdb_path(data_dir):

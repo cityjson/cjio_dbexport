@@ -181,9 +181,11 @@ class TestIntegration:
     #     tiles = ('1', '2')
 
 
-    def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int, data_dir):
+    def test_export_tiles_multiproc(self, db3dnl_db, cfg_db3dnl_int,
+                                    data_output_dir):
         """Test when the tile_index ID is an integer in the database, not a
         string AND the tiles are a list, not a tuple."""
+        lod = cfg_db3dnl_int['lod']
         tile_index = db.Schema(cfg_db3dnl_int['tile_index'])
         tile_list = db3dnl.with_list(conn=db3dnl_db, tile_index=tile_index,
                                      tile_list=('all',))
@@ -192,7 +194,7 @@ class TestIntegration:
             future_to_export = {}
             failed = []
             for tile in tile_list:
-                filepath = (data_dir / str(tile)).with_suffix('.json')
+                filepath = (data_output_dir / str(tile)).with_suffix('.json')
                 try:
                     log.info(f"Exporting tile {str(tile)} from the database")
                     dbexport = db3dnl.query(conn_cfg=cfg_db3dnl_int['database'],
@@ -204,7 +206,7 @@ class TestIntegration:
                 except BaseException as e:
                     log.error(f"Failed to export tile {str(tile)}\n{e}")
                 log.debug("Submitting process...")
-                future = executor.submit(db3dnl.to_citymodel, dbexport)
+                future = executor.submit(db3dnl.to_citymodel, dbexport, lod)
                 future_to_export[future] = filepath
             for i,future in enumerate(as_completed(future_to_export)):
                 filepath = future_to_export[future]
@@ -223,5 +225,24 @@ class TestIntegration:
                     failed.append(filepath.stem)
                 del future_to_export[future]
                 del cm
-        log.info(f"Done. Exported {len(tile_list) - len(failed)} tiles. "
-                   f"Failed {len(failed)} tiles: {failed}")
+        log.info(f"Done. Exported {len(tile_list) - len(failed)} tiles. ")
+        if len(failed) > 0:
+            pytest.fail(f"Failed {len(failed)} tiles: {failed}")
+
+    def test_export_multi_lod(self, db3dnl_db, cfg_parsed_multi):
+        """Test the export of geometry with multiple LoD."""
+        export_gen = db3dnl.query(conn_cfg=cfg_parsed_multi['database'],
+                                  tile_index=cfg_parsed_multi['tile_index'],
+                                  cityobject_type=cfg_parsed_multi[
+                                      'cityobject_type'],
+                                  bbox=[192837.734, 465644.179, 193701.818,
+                                        466898.821],
+                                  threads=1)
+        dbexport = list(export_gen)
+        # db3dnl_db.create_functions()
+        # export_gen = db3dnl.query(conn_cfg=cfg_parsed_multi['database'],
+        #                           tile_index=cfg_parsed_multi['tile_index'],
+        #                           cityobject_type=cfg_parsed_multi[
+        #                               'cityobject_type'],
+        #                           threads=1)
+        # dbexport = list(export_gen)
