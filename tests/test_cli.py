@@ -23,26 +23,6 @@ def test_command_line_interface():
 
 @pytest.mark.db3dnl
 class TestDb3DNLIntegration:
-    def test_export_tiles_multi_lod(self, data_dir, cfg_db3dnl_multi_path, capsys):
-        """Test the CLI."""
-        runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
-        export_result = runner.invoke(cli.main, [
-            str(cfg_db3dnl_multi_path),
-            'export_tiles',
-            '--jobs', '4',
-            'gb1', 'ic3', 'kh7', 'ec4',
-            str(data_dir / 'output_multi')
-        ])
-        if export_result.exit_code != 0:
-            log.error(export_result.stderr_bytes)
-            log.exception(export_result.exception)
-            pytest.fail()
-        if any(True for res in ['ERROR', 'CRITICAL', 'FATAL']
-               if res in export_result.output):
-                pytest.fail()
-
     def test_export_tiles(self, data_output_dir, cfg_db3dnl_path, capsys):
         """Test the CLI."""
         runner = CliRunner()
@@ -76,6 +56,7 @@ class TestDb3DNLIntegration:
             'gb1', 'ic3', 'kh7', 'ec4',
             str(data_output_dir)
         ])
+        print(export_result.output)
         if export_result.exit_code != 0:
             log.error(export_result.stderr_bytes)
             log.exception(export_result.exception)

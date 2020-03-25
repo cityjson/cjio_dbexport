@@ -62,18 +62,8 @@ def cfg_db3dnl_path(data_dir):
     yield data_dir / 'db3dnl_config.yml'
 
 @pytest.fixture(scope='function')
-def cfg_db3dnl_multi_path(data_dir):
-    yield data_dir / 'db3dnl_config_multi_lod.yml'
-
-@pytest.fixture(scope='function')
 def cfg_parsed(cfg_db3dnl_path):
     with open(cfg_db3dnl_path, 'r') as fo:
-        c = configure.parse_configuration(fo)
-        yield c
-
-@pytest.fixture(scope='function')
-def cfg_parsed_multi(cfg_db3dnl_multi_path):
-    with open(cfg_db3dnl_multi_path, 'r') as fo:
         c = configure.parse_configuration(fo)
         yield c
 

@@ -121,11 +121,38 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
     for cotype, relations in cfg['cityobject_type'].items():
         for i, relation in enumerate(relations):
             if isinstance(relation['field']['geometry'], str):
-                lod_key = f"lod{cfg['lod']}"
-                cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = {lod_key: relation['field']['geometry']}
+                lod_key = f"lod{cfg['geometries']['lod']}"
+                lod_name_type = {
+                    lod_key: {
+                        'name': relation['field']['geometry'],
+                        'type': 'MultiSurface'
+                    }
+                }
+                cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = lod_name_type
             elif isinstance(relation['field']['geometry'], dict):
-                # it is already the required format
-                pass
+                lod_name_type = {}
+                for lod_key in relation['field']['geometry']:
+                    if lod_key[:3] != 'lod':
+                        raise ValueError(
+                            f"Incorrect 'geometry' field mapping in {relation}."
+                            f" LoD key {lod_key} must begin with 'lod'.")
+                    if not isinstance(relation['field']['geometry'][lod_key], dict):
+                        raise ValueError(
+                            f"Incorrect 'geometry' field mapping in {relation}."
+                            f" {lod_key} must be a mapping.")
+                    if not 'name' in relation['field']['geometry'][lod_key]:
+                        raise ValueError(
+                            f"Incorrect 'geometry' field mapping in {relation}."
+                            f" Missing 'name' key.")
+                    if 'type' in relation['field']['geometry'][lod_key]:
+                        type = relation['field']['geometry'][lod_key]['type']
+                    else:
+                        type = cfg['geometries']['type']
+                    lod_name_type[lod_key] = {
+                        'name': relation['field']['geometry'][lod_key]['name'],
+                        'type': type
+                    }
+                cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = lod_name_type
             else:
                 raise ValueError(f"The 'geometry' field mapping must be a string"
                                  f" or a mapping in {relation}")
@@ -149,8 +176,8 @@ def parse_configuration(config: TextIO) -> Mapping:
         log.exception(e)
         raise
     try:
-        lod_num = cfg_stream['lod']
-        cfg_stream['lod'] = utils.lod_to_string(lod_num)
+        lod_num = cfg_stream['geometries']['lod']
+        cfg_stream['geometries']['lod'] = utils.lod_to_string(lod_num)
     except KeyError:
         log.exception("Did not find the 'lod' key in the configuration file")
         raise KeyError("Did not find the 'lod' key in the configuration file")

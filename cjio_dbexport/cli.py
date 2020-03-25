@@ -87,8 +87,9 @@ def export_all_cmd(ctx, filename):
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'])
-        cm = db3dnl.convert(dbexport)
+                                    'cityobject_type'],
+                                threads=1)
+        cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -137,8 +138,9 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
             dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                     tile_index=ctx.obj['cfg']['tile_index'],
                                     cityobject_type=ctx.obj['cfg'][
-                                        'cityobject_type'], tile_list=tile_list)
-            cm = db3dnl.convert(dbexport)
+                                        'cityobject_type'], tile_list=tile_list,
+                                    threads=1)
+            cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
             cityjson.save(cm, path=filepath, indent=None)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except BaseException as e:
@@ -192,8 +194,8 @@ def export_bbox_cmd(ctx, bbox, filename):
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
                                     'cityobject_type'],
-                                bbox=bbox)
-        cm = db3dnl.convert(dbexport)
+                                bbox=bbox, threads=1)
+        cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
@@ -227,8 +229,9 @@ def export_extent_cmd(ctx, extent, filename):
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'], extent=polygon)
-        cm = db3dnl.convert(dbexport)
+                                    'cityobject_type'], extent=polygon,
+                                threads=1)
+        cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cityjson.save(cm, path=path, indent=None)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
