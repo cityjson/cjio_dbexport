@@ -37,11 +37,11 @@ import click
 from cjio import cityjson
 
 import cjio_dbexport.utils
-from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils
+from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils, __version__
 
 
 @click.group()
-@click.version_option()
+@click.version_option(version=__version__)
 @click.option(
     '--log',
     type=click.Choice(

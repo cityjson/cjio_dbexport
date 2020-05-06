@@ -18,6 +18,7 @@ Adds
 Fixes
 *****
 * Fix surface orientation (#20)
+* Fix ``--version`` in the exe
 
 0.1.0 (2019-12-16)
 ------------------
