@@ -1,6 +1,6 @@
 .. image:: https://3d.bk.tudelft.nl/img/cover/cityjson-logo.jpg
     :alt: CityJSON logo
-    :width: 400
+    :width: 200
     :align: center
 
 
