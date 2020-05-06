@@ -179,8 +179,8 @@ def parse_configuration(config: TextIO) -> Mapping:
         lod_num = cfg_stream['geometries']['lod']
         cfg_stream['geometries']['lod'] = utils.lod_to_string(lod_num)
     except KeyError:
-        log.exception("Did not find the 'lod' key in the configuration file")
-        raise KeyError("Did not find the 'lod' key in the configuration file")
+        log.exception("Did not find the 'geometry.lod' key in the configuration file")
+        raise KeyError("Did not find the 'geometry.lod' key in the configuration file")
     except ValueError as e:
         log.exception(e)
         raise

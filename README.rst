@@ -1,3 +1,6 @@
+.. image:: cityjson-logo.jpg
+    :target: https://3d\.bk\.tudelft\.nl/img/cover/cityjson-logo.jpg
+
 =============
 cjio_dbexport
 =============
@@ -26,13 +29,9 @@ MIT license
 Install
 -------
 
-The software does not have an installer but only an executable which you can
-run directly in the command line. Head over to the `latest release
-<https://github.com/cityjson/cjio_dbexport/releases/latest>`_ and download
-the executable for your platform.
+The software does not have an installer but only an executable which you can run directly in the command line. Head over to the `latest release <https://github.com/cityjson/cjio_dbexport/releases/latest>`_ and download the executable for your platform.
 
-Extract the archive (in Windows you'll need 7zip) and run the executable from
-the command line.
+Extract the archive (in Windows you'll need 7zip) and run the executable from the command line.
 
 Install for development
 -----------------------
@@ -61,17 +60,21 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
       CONFIGURATION is the YAML configuration file.
 
     Options:
+      --version                       Show the version and exit.
       --log [DEBUG|INFO|WARNING|ERROR|CRITICAL]
                                       Set the logging level in the log file
                                       'cjdb.log'.
+
       --help                          Show this message and exit.
 
     Commands:
       export         Export the whole database into a CityJSON file.
       export_bbox    Export the objects within a 2D Bounding Box into a
                      CityJSON...
+
       export_extent  Export the objects within the given polygon into a
                      CityJSON...
+
       export_tiles   Export the objects within the given tiles into a CityJSON...
       index          Create a tile index for the specified extent.
 
@@ -79,13 +82,15 @@ Call the *cjdb* tool from the command line and pass it the configuration file.
 This tool uses a YAML-based configuration file to managing the database
 connections and to declare what to export.
 
-* The block ``lod`` declares the Level of Detail of the CityObjects.
+* The block ``geometries`` declares the Level of Detail (LoD) in and geometry type in of the CityObjects. The geometry type is one of the allowed `CityJSON geometry types <https://www.cityjson.org/specs/1.0.1/#arrays-to-represent-boundaries>`_. The LoD can be either an integer (following the CityGML standards), or a number following the `improved LoDs by TU Delft <https://3d.bk.tudelft.nl/lod/>`_.
 
-* The block ``database`` specifies the database connection parameters.
+* The block ``database`` specifies the database connection parameters. The password can be empty if it is stored a in a ``.pgpass`` file.
+
+* The block ``tile_index`` specifies the location of the *tile index* for using with the ``export_tiles`` command.
 
 * The block ``cityobject_type`` maps the database tables to CityObject types.
 
-* Each key in ``cityobject_type`` is a `1st-level or 2nd-level CityObject<https://www.cityjson.org/specs/1.0.1/#city-object>`_, and it contains a sequence of mappings. Each of these mappings refer to a single table, thus you can collect CityObjects from several tables into a single CityObject type. The ``table`` is exported as **one record per CityObject**.
+Each key in ``cityobject_type`` is a `1st-level or 2nd-level CityObject <https://www.cityjson.org/specs/1.0.1/#city-object>`_ , and it contains a sequence of mappings. Each of these mappings refer to a single table, thus you can collect CityObjects from several tables into a single CityObject type. The ``table`` is exported as **one record per CityObject**.
 
 The mapping of the fields of the table to CityObjects is done as:
 
@@ -161,11 +166,9 @@ You can provide a bounding box (minx miny maxx maxy) to limit the extent of the 
 
 .. code-block::
 
-    $ cjdb config.yml export_bbox 123.4 545.5 678.8 987.8
-path/to/output.json
+    $ cjdb config.yml export_bbox 123.4 545.5 678.8 987.8 path/to/output.json
 
-To export an irregular extent, provide a single
-Polygon in a GeoJSON file.
+To export an irregular extent, provide a single Polygon in a GeoJSON file.
 
 .. code-block::
 
