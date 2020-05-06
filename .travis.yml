@@ -1,8 +1,8 @@
 language: python
 python:
   - 3.7
-cache:
-  - pip
+#cache:
+#  - pip
 #  - directories:
 #      - "$HOME/.pyenv"
 # Would be great to cache Postgres here but dir names with spaces are split into two and escaping doesn't work
