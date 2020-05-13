@@ -1,5 +1,5 @@
 Welcome to cjio_dbexport's documentation!
-======================================
+=========================================
 
 .. toctree::
    :maxdepth: 2
@@ -11,7 +11,7 @@ Welcome to cjio_dbexport's documentation!
    modules
    contributing
    authors
-   history
+   changelog
 
 Indices and tables
 ==================
