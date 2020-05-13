@@ -1,9 +1,3 @@
-.. image:: https://3d.bk.tudelft.nl/img/cover/cityjson-logo.jpg
-    :alt: CityJSON logo
-    :width: 400
-    :align: center
-
-
 =============
 cjio_dbexport
 =============
