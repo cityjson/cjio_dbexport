@@ -562,13 +562,20 @@ def record_to_geometry(record: Mapping, cfg_geom: Mapping) -> Sequence[Geometry]
     return geometries
 
 
-def to_citymodel(dbexport, cfg):
+def to_citymodel(dbexport, cfg, compress: bool = True, important_digits: int = 3):
     try:
         cm = convert(dbexport, cfg=cfg)
     except BaseException as e:
         log.error(f"Failed to convert database export to CityJSON\n{e}")
         return None
-    if cm:
+    if cm and compress:
+        try:
+            cm.compress(important_digits=important_digits)
+        except BaseException as e:
+            log.error(f"Failed to compress cityjson\n{e}")
+            return None
+        return cm
+    elif cm and not compress:
         try:
             cm.remove_duplicate_vertices()
         except BaseException as e:
@@ -596,7 +603,7 @@ def export(tile, filepath, cfg):
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
     try:
-        cm = to_citymodel(dbexport, cfg=cfg)
+        cm = to_citymodel(dbexport, cfg=cfg, compress=True, important_digits=3)
     finally:
         del dbexport
     if cm is not None:

@@ -91,7 +91,7 @@ def export_all_cmd(ctx, filename):
                                     'cityobject_type'],
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
-        cityjson.save(cm, path=path, indent=None)
+        cityjson.save(cm, path=path, indent=False)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
@@ -142,7 +142,7 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
                                         'cityobject_type'], tile_list=tile_list,
                                     threads=1)
             cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
-            cityjson.save(cm, path=filepath, indent=None)
+            cityjson.save(cm, path=filepath, indent=False)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except BaseException as e:
             raise click.ClickException(e)
@@ -197,7 +197,7 @@ def export_bbox_cmd(ctx, bbox, filename):
                                     'cityobject_type'],
                                 bbox=bbox, threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
-        cityjson.save(cm, path=path, indent=None)
+        cityjson.save(cm, path=path, indent=False)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
@@ -233,7 +233,7 @@ def export_extent_cmd(ctx, extent, filename):
                                     'cityobject_type'], extent=polygon,
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
-        cityjson.save(cm, path=path, indent=None)
+        cityjson.save(cm, path=path, indent=False)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
