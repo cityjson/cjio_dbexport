@@ -2,6 +2,14 @@
 Changelog
 ==========
 
+0.6.1 (2020-07-15)
+-------------------
+
+Adds
+*****
+* Compression to `export_tiles`
+* Remove all whitespace characters
+
 0.6.0 (2020-05-06)
 -------------------
 
