@@ -602,7 +602,7 @@ def export(tile, filepath, cfg):
     if cm is not None:
         try:
             with open(filepath, "w") as fout:
-                json_str = json.dumps(cm.j, indent=None)
+                json_str = json.dumps(cm.j, separators=(',', ':'))
                 fout.write(json_str)
             return True, filepath
         except IOError as e:
