@@ -1,15 +1,17 @@
-lod: 1
+geometries:
+  lod: 1
+  type: MultiSurface
 
 database:
   dbname: db3dnl
   host: localhost
   port:
-  user: db3dnl_tester
-  password: db3dnl_test
+  user: cjdb_tester
+  password: cjdb_test
 
 tile_index:
   schema: tile_index
-  table: tile_index_int
+  table: tile_index_sub
   srid: 7415
   field:
     pk: id
@@ -21,7 +23,13 @@ cityobject_type:
       table: building
       field:
         pk: ogc_fid
-        geometry: wkb_geometry
+        geometry:
+          lod12:
+            name: wkb_geometry
+            type: Solid
+          lod13:
+            name: wkb_geometry_lod13
+            type: MultiSurface
         cityobject_id: identificatie
         exclude: ["xml", "_clipped"]
   Road:

@@ -6,6 +6,7 @@
 import pickle
 from pathlib import Path
 import pytest
+import yaml
 
 from cjio_dbexport import configure, db
 
@@ -30,48 +31,72 @@ def pytest_collection_modifyitems(config, items):
             item.add_marker(skip_cjdb)
 
 #-------------------------------------------------------------------- directory
-@pytest.fixture('session')
+@pytest.fixture(scope='session')
 def t_dir():
     """tests directory"""
-    yield Path(__file__).parent
+    return Path(__file__).parent
 
 
-@pytest.fixture('session')
+@pytest.fixture(scope='session')
 def data_dir(t_dir):
-    yield t_dir / 'data'
+    return t_dir / 'data'
 
-@pytest.fixture('session')
+@pytest.fixture(scope='session')
 def data_output_dir(t_dir):
     outdir = t_dir / 'data' / 'output'
     outdir.mkdir(exist_ok=True)
-    yield outdir
+    return outdir
 
-@pytest.fixture('session')
+@pytest.fixture(scope='session')
 def root_dir(t_dir):
-    yield t_dir.parent
+    return t_dir.parent
 
 
-@pytest.fixture('session')
+@pytest.fixture(scope='session')
 def package_dir(root_dir):
-    yield root_dir / 'cjio_dbexport'
+    return root_dir / 'cjio_dbexport'
 
 # ------------------------------------------------------------------- testing DB
 
 @pytest.fixture(scope='function')
 def cfg_db3dnl_path(data_dir):
-    yield data_dir / 'db3dnl_config.yml'
+    return data_dir / 'db3dnl_config.yml'
 
-@pytest.fixture(scope='function')
-def cfg_parsed(cfg_db3dnl_path):
+@pytest.fixture(scope='function',
+                params=[{"postgis-10-2.5": 5557}, {"postgis-13-3.0": 5558}],
+                ids=["postgis-10-2.5", "postgis-13-3.0"])
+def cfg_db3dnl(request, cfg_db3dnl_path):
     with open(cfg_db3dnl_path, 'r') as fo:
         c = configure.parse_configuration(fo)
-        yield c
+        if request.param is None:
+            print("NOOOOOO")
+        postgis_docker, port = list(request.param.items())[0]
+        c["database"]["port"] = port
+        return c
 
-@pytest.fixture(scope='function')
-def cfg_db3dnl_int(data_dir):
+@pytest.fixture(scope='function',
+                params=[{"postgis-10-2.5": 5557}, {"postgis-13-3.0": 5558}],
+                ids=["postgis-10-2.5", "postgis-13-3.0"])
+def cfg_db3dnl_path_param(request, cfg_db3dnl_path, data_output_dir):
+    with open(cfg_db3dnl_path, 'r') as fo:
+        c = configure.parse_configuration(fo)
+        postgis_docker,port = list(request.param.items())[0]
+        c["database"]["port"] = port
+        outpath = data_output_dir / Path(postgis_docker).with_suffix('.yml')
+    with outpath.open('w') as fo:
+        yaml.dump(c, fo)
+    return outpath
+
+
+@pytest.fixture(scope='function',
+                params=[{"postgis-10-2.5": 5557}, {"postgis-13-3.0": 5558}],
+                ids=["postgis-10-2.5", "postgis-13-3.0"])
+def cfg_db3dnl_int(request, data_dir):
     config = data_dir / 'db3dnl_config_int.yml'
     with open(config, 'r') as fo:
         c = configure.parse_configuration(fo)
+        postgis_docker, port = list(request.param.items())[0]
+        c["database"]["port"] = port
         yield c
 
 @pytest.fixture(scope='function')
@@ -88,9 +113,9 @@ def db3dnl_4tiles_pickle(data_dir):
     yield data_dir / 'db3dnl_4tiles.pickle'
 
 @pytest.fixture(scope='function')
-def db3dnl_db(cfg_parsed):
+def db3dnl_db(cfg_db3dnl):
     # TODO: needs database setup
-    conn = db.Db(**cfg_parsed['database'])
+    conn = db.Db(**cfg_db3dnl['database'])
     yield conn
     conn.close()
 

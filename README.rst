@@ -23,6 +23,14 @@ MIT license
 ..
     * Documentation: https://cjio-dbexport.readthedocs.io.
 
+Requirements
+------------
+
++ PostgreSQL
+
+    + I'm testing against Postgres 10 + PostGIS 2.5, Postgres 13 + PostGIS 3.0
+
+
 Install
 -------
 
@@ -40,6 +48,8 @@ The project is alpha, please install directly from GitHub with pip:
 .. code-block::
 
     $ pip install -U --force-reinstall git+https://github.com/cityjson/cjio_dbexport@master
+
+Also install the development requirements from ``requirements_dev.txt``
 
 Usage
 -----
@@ -287,15 +297,7 @@ Limitations
 
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
 
-+ Only tested with PostgresSQL 11, PostGIS 2.5
-
 + CRS is hardcoded to 7415
-
-
-Features (planned)
-------------------
-
-See `the 3DNL project <https://github.com/cityjson/cjio_dbexport/projects/1>`_
 
 
 3DNL

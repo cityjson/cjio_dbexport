@@ -1,0 +1,29 @@
+version: '3.8'
+services:
+  postgis_10_25:
+    image: postgis/postgis:10-2.5-alpine
+    ports:
+    - "5557:5432"
+    env_file:
+      - postgis.env
+    volumes:
+      - postgis_10_25-data:/var/lib/postgresql/data/
+      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
+    networks:
+      - cjdb-network
+  postgis_13_30:
+    image: postgis/postgis:13-3.0-alpine
+    ports:
+    - "5558:5432"
+    env_file:
+      - postgis.env
+    volumes:
+      - postgis_13_30-data:/var/lib/postgresql/data/
+      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
+    networks:
+      - cjdb-network
+volumes:
+  postgis_10_25-data:
+  postgis_13_30-data:
+networks:
+  cjdb-network:

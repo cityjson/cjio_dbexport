@@ -51,7 +51,6 @@ coverage.xml
 .hypothesis/
 .pytest_cache/
 # Test datasets
-tests/data/db3dnl_config.yml
 tests/data/*.json
 
 # Translations
@@ -114,3 +113,4 @@ ENV/
 
 # Other
 .directory
+/docker/db3dnl_sample.sql.gz
