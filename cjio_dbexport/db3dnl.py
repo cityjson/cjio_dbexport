@@ -25,7 +25,7 @@ SOFTWARE.
 """
 import logging
 import re
-from datetime import datetime
+from datetime import date, time, datetime, timedelta
 from typing import Mapping, Sequence, Tuple, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
@@ -532,8 +532,10 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict):
         # Parse attributes
         for key, attr in record.items():
             if key != "pk" and "geom_" not in key and key != "coid" and key != cfg_geom['lod']:
-                if isinstance(attr, datetime):
+                if isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
                     co.attributes[key] = attr.isoformat()
+                elif isinstance(attr, timedelta):
+                    co.attributes[key] = str(attr)
                 else:
                     co.attributes[key] = attr
         # Set the CityObject type
