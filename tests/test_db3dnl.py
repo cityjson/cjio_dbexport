@@ -118,28 +118,6 @@ class TestIntegration:
                                       'cityobject_type'], tile_list=['gb2', ])
         dbexport = list(export_gen)
 
-    # def test_export_no_pool_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
-    #                                   caplog,
-    #                                   db3dnl_4tiles_pickle):
-    #     export_gen = db3dnl._export_no_pool(conn_cfg=cfg_parsed['database'],
-    #                                         tile_index=cfg_parsed['tile_index'],
-    #                                         cityobject_type=cfg_parsed[
-    #                                             'cityobject_type'],
-    #                                         tile_list=['gb2', 'ic1', 'ic2',
-    #                                                    'ec4'])
-    #     dbexport = list(export_gen)
-    #     with open(db3dnl_4tiles_pickle, 'wb') as fo:
-    #         pickle.dump(dbexport, fo)
-    #
-    # def test_export_single_tile_list(self, data_dir, cfg_parsed, db3dnl_db,
-    #                                  caplog, db3dnl_4tiles_pickle):
-    #     caplog.set_level(logging.DEBUG)
-    #     dbexport = list(db3dnl._export_single(conn=db3dnl_db, cfg=cfg_parsed,
-    #                                           tile_list=['gb2', 'ic1', 'ic2',
-    #                                                      'ec4']))
-    #     with open(db3dnl_4tiles_pickle, 'wb') as fo:
-    #         pickle.dump(dbexport, fo)
-
     def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl, caplog):
         caplog.set_level(logging.DEBUG)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
@@ -159,6 +137,27 @@ class TestIntegration:
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         cm.get_info()
+
+    def test_export_lod_column(self, data_dir, db3dnl_db, cfg_db3dnl):
+        c = [{
+            'schema': 'public',
+            'table': 'building',
+            'field': {
+                'pk': 'ogc_fid',
+                'geometry': {'lod1': {'name': 'wkb_geometry', 'type': 'MultiSurface'}},
+                'lod': '_lod',
+                'cityobject_id': 'identificatie',
+                'exclude': ['xml', '_clipped']
+            }
+        }]
+        cfg_db3dnl['cityobject_type']['Building'] = c
+        dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
+                                tile_index=cfg_db3dnl['tile_index'],
+                                cityobject_type=cfg_db3dnl[
+                                    'cityobject_type'], tile_list=['gb2', ],
+                                threads=1)
+        cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
+        log.info(cm.get_info(long=True))
 
     def test_index(self, data_dir, nl_poly):
         tilesize = (10000, 10000)
