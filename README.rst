@@ -261,6 +261,21 @@ If you want to export a table to a different geometry type than that of the glob
               name: geom_lod13
               type: Solid
 
+Furthermore, it is possible to assign different a different LoD per object. In this case the LoD name (e.g. ``1.2`` or ``2``) is expected to be stored in column of the CityObject table. In the example below each CityObject will get the LoD that is stored in the ``lod_column`` column of the ``building`` table.
+
+.. code-block::
+
+  cityobject_type:
+    Building:
+      - schema: public
+        table: building
+        field:
+          pk: ogc_fid
+          geometry: geometry_column
+          lod: lod_column
+
+When the LoD is declared on multiple levels for a CityObject (e.g. on global, per column or per object) then the lower-level declaration overrules the higher-level one. For instance the per-column declaration overrules the global.
+
 
 Creating a tile index
 *********************
