@@ -513,6 +513,7 @@ def dbexport_to_cityobjects(dbexport, cfg):
         for _c in cfg["cityobject_type"][cotype]:
             if _c["table"] == cotable:
                 cfg_geom = _c["field"]["geometry"]
+                cfg_geom['lod'] = _c["field"].get('lod')
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
             tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom
@@ -521,7 +522,7 @@ def dbexport_to_cityobjects(dbexport, cfg):
             yield coid, co
 
 
-def table_to_cityobjects(tabledata, cotype: str, cfg_geom: Mapping):
+def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict):
     """Converts a database record to a CityObject."""
     for record in tabledata:
         coid = record["coid"]
@@ -530,7 +531,7 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: Mapping):
         co.geometry = record_to_geometry(record, cfg_geom)
         # Parse attributes
         for key, attr in record.items():
-            if key != "pk" and "geom_" not in key and key != "coid":
+            if key != "pk" and "geom_" not in key and key != "coid" and key != cfg_geom['lod']:
                 if isinstance(attr, datetime):
                     co.attributes[key] = attr.isoformat()
                 else:
@@ -540,25 +541,27 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: Mapping):
         yield coid, co
 
 
-def record_to_geometry(record: Mapping, cfg_geom: Mapping) -> Sequence[Geometry]:
+def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
     """Create a CityJSON Geometry from a boundary array that was retrieved from
     Postgres.
     """
     geometries = []
-    for field in record:
-        if settings.geom_prefix in field:
-            lod_key = field.replace(settings.geom_prefix, "")
+    lod_column = cfg_geom.get('lod')
+    for lod_key in [k for k in cfg_geom if k != 'lod']:
+        if lod_column:
+            lod = record[lod_column]
+        else:
             lod = utils.parse_lod_value(lod_key)
-            geomtype = cfg_geom[lod_key]["type"]
-            geom = Geometry(type=geomtype, lod=lod)
-            if geomtype == "Solid":
-                solid = [
-                    record[field],
-                ]
-                geom.boundaries = solid
-            elif geomtype == "MultiSurface":
-                geom.boundaries = record[field]
-            geometries.append(geom)
+        geomtype = cfg_geom[lod_key]["type"]
+        geom = Geometry(type=geomtype, lod=lod)
+        if geomtype == "Solid":
+            solid = [
+                record.get(settings.geom_prefix + lod_key),
+            ]
+            geom.boundaries = solid
+        elif geomtype == "MultiSurface":
+            geom.boundaries = record.get(settings.geom_prefix + lod_key)
+        geometries.append(geom)
     return geometries
 
 

@@ -68,8 +68,6 @@ def cfg_db3dnl_path(data_dir):
 def cfg_db3dnl(request, cfg_db3dnl_path):
     with open(cfg_db3dnl_path, 'r') as fo:
         c = configure.parse_configuration(fo)
-        if request.param is None:
-            print("NOOOOOO")
         postgis_docker, port = list(request.param.items())[0]
         c["database"]["port"] = port
         return c
