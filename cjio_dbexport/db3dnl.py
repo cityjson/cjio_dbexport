@@ -40,6 +40,149 @@ from cjio_dbexport import settings, db, utils
 log = logging.getLogger(__name__)
 
 
+def export(tile, filepath, cfg):
+    """Export a tile from PostgreSQL, convert to CityJSON and write to file."""
+    try:
+        dbexport = query(
+            conn_cfg=cfg["database"],
+            tile_index=cfg["tile_index"],
+            cityobject_type=cfg["cityobject_type"],
+            threads=1,
+            tile_list=(tile,),
+        )
+    except BaseException as e:
+        log.error(f"Failed to export tile {str(tile)}\n{e}")
+        return False, filepath
+    try:
+        cm = to_citymodel(dbexport, cfg=cfg, compress=True, important_digits=3)
+    finally:
+        del dbexport
+    if cm is not None:
+        cm.j["metadata"]["fileIdentifier"] = filepath.name
+        try:
+            with open(filepath, "w") as fout:
+                json_str = json.dumps(cm.j, separators=(',', ':'))
+                fout.write(json_str)
+            return True, filepath
+        except IOError as e:
+            log.error(f"Invalid output file: {filepath}\n{e}")
+            return False, filepath
+        finally:
+            del cm
+    else:
+        log.error(
+            f"Failed to create CityJSON from {filepath.stem},"
+            f" check the logs for details."
+        )
+        return False, filepath
+
+
+def to_citymodel(dbexport, cfg, compress: bool = True, important_digits: int = 3):
+    try:
+        cm = convert(dbexport, cfg=cfg)
+    except BaseException as e:
+        log.error(f"Failed to convert database export to CityJSON\n{e}")
+        return None
+    if cm and compress:
+        try:
+            cm.compress(important_digits=important_digits)
+        except BaseException as e:
+            log.error(f"Failed to compress cityjson\n{e}")
+            return None
+        return cm
+    elif cm and not compress:
+        try:
+            cm.remove_duplicate_vertices()
+        except BaseException as e:
+            log.error(f"Failed to remove duplicate vertices\n{e}")
+            return None
+        try:
+            cm.remove_orphan_vertices()
+        except BaseException as e:
+            log.error(f"Failed to remove orphan vertices\n{e}")
+            return None
+        return cm
+
+
+def convert(dbexport, cfg):
+    """Convert the exported citymodel to CityJSON. """
+    # Set EPSG
+    epsg = 7415
+    cm = cityjson.CityJSON()
+    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg))
+    log.debug("Referencing geometry")
+    cityobjects, vertex_lookup = cm.reference_geometry()
+    log.debug("Adding to json")
+    cm.add_to_j(cityobjects, vertex_lookup)
+    log.debug("Updating metadata")
+    cm.update_metadata(overwrite=True, new_uuid=True)
+    log.debug("Setting EPSG")
+    cm.set_epsg(epsg)
+    log.info(f"Exported CityModel:\n{cm}")
+    return cm
+
+
+def dbexport_to_cityobjects(dbexport, cfg):
+    for coinfo, tabledata in dbexport:
+        cotype, cotable = coinfo
+        cfg_geom = None
+        for _c in cfg["cityobject_type"][cotype]:
+            if _c["table"] == cotable:
+                cfg_geom = _c["field"]["geometry"]
+                cfg_geom['lod'] = _c["field"].get('lod')
+        # Loop through the whole tabledata and create the CityObjects
+        cityobject_generator = table_to_cityobjects(
+            tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom
+        )
+        for coid, co in cityobject_generator:
+            yield coid, co
+
+
+def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict):
+    """Converts a database record to a CityObject."""
+    for record in tabledata:
+        coid = record["coid"]
+        co = CityObject(id=coid)
+        # Parse the geometry
+        co.geometry = record_to_geometry(record, cfg_geom)
+        # Parse attributes
+        for key, attr in record.items():
+            if key != "pk" and "geom_" not in key and key != "coid" and key != cfg_geom['lod']:
+                if isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
+                    co.attributes[key] = attr.isoformat()
+                elif isinstance(attr, timedelta):
+                    co.attributes[key] = str(attr)
+                else:
+                    co.attributes[key] = attr
+        # Set the CityObject type
+        co.type = cotype
+        yield coid, co
+
+
+def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
+    """Create a CityJSON Geometry from a boundary array that was retrieved from
+    Postgres.
+    """
+    geometries = []
+    lod_column = cfg_geom.get('lod')
+    for lod_key in [k for k in cfg_geom if k != 'lod']:
+        if lod_column:
+            lod = record[lod_column]
+        else:
+            lod = utils.parse_lod_value(lod_key)
+        geomtype = cfg_geom[lod_key]["type"]
+        geom = Geometry(type=geomtype, lod=lod)
+        if geomtype == "Solid":
+            solid = [
+                record.get(settings.geom_prefix + lod_key),
+            ]
+            geom.boundaries = solid
+        elif geomtype == "MultiSurface":
+            geom.boundaries = record.get(settings.geom_prefix + lod_key)
+        geometries.append(geom)
+    return geometries
+
+
 def query(
     conn_cfg: Mapping,
     tile_index: Mapping,
@@ -486,145 +629,3 @@ def sql_cast_geometry(features: db.Schema) -> sql.Composed:
         for lod in features.field.geometry.keys()
     ]
     return sql.SQL(",").join(lod_fields)
-
-
-def convert(dbexport, cfg):
-    """Convert the exported citymodel to CityJSON. """
-    # Set EPSG
-    epsg = 7415
-    cm = cityjson.CityJSON()
-    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg))
-    log.debug("Referencing geometry")
-    cityobjects, vertex_lookup = cm.reference_geometry()
-    log.debug("Adding to json")
-    cm.add_to_j(cityobjects, vertex_lookup)
-    log.debug("Updating bbox")
-    cm.update_bbox()
-    log.debug("Setting EPSG")
-    cm.set_epsg(epsg)
-    log.info(f"Exported CityModel:\n{cm}")
-    return cm
-
-
-def dbexport_to_cityobjects(dbexport, cfg):
-    for coinfo, tabledata in dbexport:
-        cotype, cotable = coinfo
-        cfg_geom = None
-        for _c in cfg["cityobject_type"][cotype]:
-            if _c["table"] == cotable:
-                cfg_geom = _c["field"]["geometry"]
-                cfg_geom['lod'] = _c["field"].get('lod')
-        # Loop through the whole tabledata and create the CityObjects
-        cityobject_generator = table_to_cityobjects(
-            tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom
-        )
-        for coid, co in cityobject_generator:
-            yield coid, co
-
-
-def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict):
-    """Converts a database record to a CityObject."""
-    for record in tabledata:
-        coid = record["coid"]
-        co = CityObject(id=coid)
-        # Parse the geometry
-        co.geometry = record_to_geometry(record, cfg_geom)
-        # Parse attributes
-        for key, attr in record.items():
-            if key != "pk" and "geom_" not in key and key != "coid" and key != cfg_geom['lod']:
-                if isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
-                    co.attributes[key] = attr.isoformat()
-                elif isinstance(attr, timedelta):
-                    co.attributes[key] = str(attr)
-                else:
-                    co.attributes[key] = attr
-        # Set the CityObject type
-        co.type = cotype
-        yield coid, co
-
-
-def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
-    """Create a CityJSON Geometry from a boundary array that was retrieved from
-    Postgres.
-    """
-    geometries = []
-    lod_column = cfg_geom.get('lod')
-    for lod_key in [k for k in cfg_geom if k != 'lod']:
-        if lod_column:
-            lod = record[lod_column]
-        else:
-            lod = utils.parse_lod_value(lod_key)
-        geomtype = cfg_geom[lod_key]["type"]
-        geom = Geometry(type=geomtype, lod=lod)
-        if geomtype == "Solid":
-            solid = [
-                record.get(settings.geom_prefix + lod_key),
-            ]
-            geom.boundaries = solid
-        elif geomtype == "MultiSurface":
-            geom.boundaries = record.get(settings.geom_prefix + lod_key)
-        geometries.append(geom)
-    return geometries
-
-
-def to_citymodel(dbexport, cfg, compress: bool = True, important_digits: int = 3):
-    try:
-        cm = convert(dbexport, cfg=cfg)
-    except BaseException as e:
-        log.error(f"Failed to convert database export to CityJSON\n{e}")
-        return None
-    if cm and compress:
-        try:
-            cm.compress(important_digits=important_digits)
-        except BaseException as e:
-            log.error(f"Failed to compress cityjson\n{e}")
-            return None
-        return cm
-    elif cm and not compress:
-        try:
-            cm.remove_duplicate_vertices()
-        except BaseException as e:
-            log.error(f"Failed to remove duplicate vertices\n{e}")
-            return None
-        try:
-            cm.remove_orphan_vertices()
-        except BaseException as e:
-            log.error(f"Failed to remove orphan vertices\n{e}")
-            return None
-        return cm
-
-
-def export(tile, filepath, cfg):
-    """Export a tile from PostgreSQL, convert to CityJSON and write to file."""
-    try:
-        dbexport = query(
-            conn_cfg=cfg["database"],
-            tile_index=cfg["tile_index"],
-            cityobject_type=cfg["cityobject_type"],
-            threads=1,
-            tile_list=(tile,),
-        )
-    except BaseException as e:
-        log.error(f"Failed to export tile {str(tile)}\n{e}")
-        return False, filepath
-    try:
-        cm = to_citymodel(dbexport, cfg=cfg, compress=True, important_digits=3)
-    finally:
-        del dbexport
-    if cm is not None:
-        try:
-            with open(filepath, "w") as fout:
-                json_str = json.dumps(cm.j, separators=(',', ':'))
-                fout.write(json_str)
-            return True, filepath
-        except IOError as e:
-            log.error(f"Invalid output file: {filepath}\n{e}")
-            return False, filepath
-        finally:
-            del cm
-    else:
-        log.error(
-            f"Failed to create CityJSON from {filepath.stem},"
-            f" check the logs for details."
-        )
-        return False, filepath
