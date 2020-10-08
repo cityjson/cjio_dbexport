@@ -266,11 +266,11 @@ def query(
                     cotype, tablename = future_to_table[future]
                     try:
                         # Note that resultset can be []
-                        yield (cotype, cotable["table"]), future.result()
+                        yield (cotype, tablename), future.result()
                     except pgError as e:
                         log.error(f"{e.pgcode}\t{e.pgerror}")
                         raise ClickException(
-                            f"Could not query {cotable}. Check the "
+                            f"Could not query {tablename}. Check the "
                             f"logs for details."
                         )
         finally:

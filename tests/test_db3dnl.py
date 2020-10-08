@@ -121,26 +121,17 @@ class TestIntegration:
 
     def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl, caplog):
         caplog.set_level(logging.DEBUG)
-        # export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
+        # dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
         #                           tile_index=cfg_db3dnl['tile_index'],
         #                           cityobject_type=cfg_db3dnl[
-        #                               'cityobject_type'], tile_list=['gb2', 'ic1', 'ic2', 'ec4'],
-        #                           threads=1)
-        # dbexport = list(export_gen)
+        #                               'cityobject_type'], tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
         # with open(data_dir / 'db3dnl_4tiles.pickle', 'wb') as fo:
-        #     pickle.dump(dbexport, fo)
+        #     pickle.dump(list(dbexport), fo)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
-        assert [
-                   "LandUse",
-                   "Road",
-                   "Building",
-                   "Bridge",
-                   "GenericCityObject",
-                   "PlantCover",
-                   "WaterBody"
-               ] == cm.get_metadata()["thematicModels"]
+        assert {"LandUse", "Road", "Building", "Bridge", "GenericCityObject",
+                "PlantCover", "WaterBody"} == set(cm.get_metadata()["thematicModels"])
 
         log.info(json.dumps(cm.get_metadata(), indent=2))
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
