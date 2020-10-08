@@ -1,6 +1,6 @@
 language: python
 python:
-  - 3.7
+  - 3.8
 #cache:
 #  - pip
 #  - directories:
@@ -27,34 +27,33 @@ branches:
 stages:
   - name: test
   - name: deploy
-    # The executable is built only with python3.7 on the master branch
-    if: branch = master AND env(TRAVIS_PYTHON_VERSION) = 3.7
+    # The executable is built only with python3.8 on the master branch
+    if: branch = master AND env(TRAVIS_PYTHON_VERSION) = 3.8
 
 jobs:
   include:
-    - name: Python 3.7.5 on Bionic Ubuntu
+    - name: Python 3.8.5 on Bionic Ubuntu
       dist: bionic
       before_install:
         - export EXE_PKG="$EXE_NAME"_"$TRAVIS_CPU_ARCH"_ubuntu1804
-    - name: Python 3.7.6 with pyenv on Windows
+    - name: Python 3.8.5 with pyenv on Windows
       os: windows
       language: shell
       before_install:
-        - export PATH="$HOME/.pyenv/pyenv-win/bin:$HOME/.pyenv/pyenv-win/shims:$HOME/.pyenv/pyenv-win/versions/3.7.6-amd64:$HOME/.pyenv/pyenv-win/versions/3.7.6-amd64/Scripts:$PATH"
+        - choco install pyenv-win
+        - export PATH="$HOME/.pyenv/pyenv-win/bin:$HOME/.pyenv/pyenv-win/shims:$HOME/.pyenv/pyenv-win/versions/3.8.2:$HOME/.pyenv/pyenv-win/versions/3.8.2/Scripts:$PATH"
         - export EXE_PKG="$EXE_NAME"_"$TRAVIS_CPU_ARCH"_win10
-        - if [ -z "$(ls -A $HOME/.pyenv)" ]; then
-          git clone https://github.com/pyenv-win/pyenv-win.git $HOME/.pyenv;
-          pyenv install -q 3.6.9-amd64;
-          pyenv install -q 3.7.6-amd64;
-          pyenv install -q 3.8.1-amd64;
-          fi
+        - powershell -Command refreshenv
+        - pyenv --version
+        - pyenv install --list
+        - pyenv install 3.8.2
         - pyenv rehash
-        - pyenv global 3.7.6-amd64
-        - pyenv local 3.7.6-amd64
+        - pyenv global 3.8.2
+        - pyenv local 3.8.2
         - python --version
         - python -m pip install --upgrade pip
         - pip install pywin32
-        - choco install postgresql11
+        - choco install postgresql10
 
 install:
   - pip install -U tox-travis
