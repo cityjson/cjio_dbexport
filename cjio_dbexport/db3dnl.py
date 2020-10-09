@@ -134,6 +134,7 @@ def dbexport_to_cityobjects(dbexport, cfg):
             if _c["table"] == cotable:
                 cfg_geom = _c["field"]["geometry"]
                 cfg_geom['lod'] = _c["field"].get('lod')
+                cfg_geom['semantics'] = _c["field"].get('semantics')
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
             tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom,
@@ -143,16 +144,18 @@ def dbexport_to_cityobjects(dbexport, cfg):
             yield coid, co
 
 
-def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding=4):
+def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding: int):
     """Converts a database record to a CityObject."""
     for record in tabledata:
         coid = record["coid"]
         co = CityObject(id=coid)
         # Parse the geometry
         co.geometry = record_to_geometry(record, cfg_geom)
-        # Parse attributes
+        # Parse attributes, except special fields that serve some purpose,
+        # eg. primary key (pk) or cityobject ID (coid)
+        special_fields = ['pk', 'coid', cfg_geom['lod'], cfg_geom['semantics']]
         for key, attr in record.items():
-            if key != "pk" and "geom_" not in key and key != "coid" and key != cfg_geom['lod']:
+            if key not in special_fields and "geom_" not in key:
                 if isinstance(attr, float):
                     co.attributes[key] = round(attr, rounding)
                 elif isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
@@ -172,7 +175,8 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
     """
     geometries = []
     lod_column = cfg_geom.get('lod')
-    for lod_key in [k for k in cfg_geom if k != 'lod']:
+    semantics_column = cfg_geom.get('semantics')
+    for lod_key in [k for k in cfg_geom if k != 'lod' and k != 'semantics']:
         if lod_column:
             lod = record[lod_column]
         else:
@@ -186,8 +190,39 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
             geom.boundaries = solid
         elif geomtype == "MultiSurface":
             geom.boundaries = record.get(settings.geom_prefix + lod_key)
+        if semantics_column:
+            geom.surfaces = record_to_surfaces(
+                geomtype=geomtype,
+                boundary=geom.boundaries,
+                semantics=record[semantics_column])
         geometries.append(geom)
     return geometries
+
+
+def record_to_surfaces(geomtype: str, boundary: Sequence,
+                        semantics: Sequence[int]) -> dict:
+    """Create a CityJSON Semantic Surface object from an array of labels and a
+    CityJSON geometry representation.
+    """
+    surfaces = {
+        0: {'surface_idx': [], 'type': 'GroundSurface'},
+        1: {'surface_idx': [], 'type': 'RoofSurface'},
+        2: {'surface_idx': [], 'type': 'WallSurface'},
+        3: {'surface_idx': [], 'type': 'InnerWallSurface'}
+    }
+    if geomtype == "Solid":
+        if len(boundary) > 1:
+            log.warning("Cannot assign semantics to Solids with inner shell(s)")
+        shell = boundary[0]
+        if len(shell) != len(semantics):
+            log.warning("Encountered unequal sized geometry shell and semantics arrays")
+        else:
+            for i, srf in enumerate(shell):
+                surfaces[semantics[i]]['surface_idx'].append([0,i])
+    elif geomtype == "MultiSurface":
+        for i, srf in enumerate(boundary):
+            surfaces[semantics[i]]['surface_idx'].append(i)
+    return {sem: idx for sem, idx in surfaces.items() if len(idx['surface_idx']) > 0}
 
 
 def query(

@@ -257,11 +257,11 @@ class TestIntegration:
 
 @pytest.mark.db3dnl
 class TestLoD2:
-    def test_export_lod2(self, cfg_db3dnl_lod2, caplog):
+    def test_export_lod2(self, cfg_lod2, caplog):
         caplog.set_level(logging.DEBUG)
-        dbexport = db3dnl.query(conn_cfg=cfg_db3dnl_lod2['database'],
-                                  tile_index=cfg_db3dnl_lod2['tile_index'],
-                                  cityobject_type=cfg_db3dnl_lod2['cityobject_type'],
+        dbexport = db3dnl.query(conn_cfg=cfg_lod2['database'],
+                                  tile_index=cfg_lod2['tile_index'],
+                                  cityobject_type=cfg_lod2['cityobject_type'],
                                   tile_list=['ec4', ])
-        cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl_lod2)
+        cm = db3dnl.convert(dbexport, cfg=cfg_lod2)
         log.info(cm.get_info(long=True))

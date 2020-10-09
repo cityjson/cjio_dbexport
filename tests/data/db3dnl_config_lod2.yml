@@ -1,3 +1,5 @@
+
+
 database:
   dbname: db3dnl
   host: localhost
@@ -23,5 +25,5 @@ cityobject_type:
           lod22:
             name: wkb_geometry
             type: Solid
-            semantics: labels
+        semantics: labels
         cityobject_id: identificatie

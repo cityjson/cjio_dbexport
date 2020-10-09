@@ -131,7 +131,7 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
                     }
                 }
                 cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = lod_name_type
-            # if the lod is declared per table
+            # If the lod is declared per table
             elif isinstance(relation['field']['geometry'], dict):
                 lod_name_type = {}
                 for lod_key in relation['field']['geometry']:
@@ -155,6 +155,10 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
                         'name': relation['field']['geometry'][lod_key]['name'],
                         'type': type
                     }
+                    # # We only take the semantic values when the geometry type and LoD
+                    # # is declared explicitly for the table
+                    # if 'semantics' in relation['field']['geometry'][lod_key]:
+                    #     lod_name_type[lod_key]['semantics'] = relation['field']['geometry'][lod_key]['semantics']
                 cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = lod_name_type
             else:
                 raise ValueError(f"The 'geometry' field mapping must be a string"

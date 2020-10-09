@@ -129,3 +129,26 @@ class TestDb3DNLIntegration:
             log.error(export_result.stderr_bytes)
             log.exception(export_result.exception)
             pytest.fail()
+
+
+@pytest.mark.db3dnl
+class TestLoD2Integration:
+    def test_export_one(self, data_output_dir, cfg_lod2_path_param, capsys):
+        """Test the CLI."""
+        runner = CliRunner()
+        result = runner.invoke(cli.main)
+        assert result.exit_code == 0
+        export_result = runner.invoke(cli.main, [
+            str(cfg_lod2_path_param),
+            'export_tiles',
+            '--jobs', '1',
+            'ec4',
+            str(data_output_dir)
+        ])
+        if export_result.exit_code != 0:
+            log.error(export_result.stderr_bytes)
+            log.exception(export_result.exception)
+            pytest.fail()
+        if any(True for res in ['ERROR', 'CRITICAL', 'FATAL']
+               if res in export_result.output):
+                pytest.fail()
