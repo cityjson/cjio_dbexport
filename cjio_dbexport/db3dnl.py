@@ -108,6 +108,10 @@ def convert(dbexport, cfg):
     """Convert the exported citymodel to CityJSON. """
     # Set EPSG
     epsg = 7415
+    # Set rounding for floating point attributes
+    cfg["rounding"] = 4
+    log.info(
+        f"Floating point attributes are rounded up to {cfg['rounding']} decimal digits")
     cm = cityjson.CityJSON()
     cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg))
     log.debug("Referencing geometry")
@@ -132,13 +136,14 @@ def dbexport_to_cityobjects(dbexport, cfg):
                 cfg_geom['lod'] = _c["field"].get('lod')
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
-            tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom
+            tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom,
+            rounding=cfg['rounding']
         )
         for coid, co in cityobject_generator:
             yield coid, co
 
 
-def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict):
+def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding=4):
     """Converts a database record to a CityObject."""
     for record in tabledata:
         coid = record["coid"]
@@ -148,7 +153,9 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict):
         # Parse attributes
         for key, attr in record.items():
             if key != "pk" and "geom_" not in key and key != "coid" and key != cfg_geom['lod']:
-                if isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
+                if isinstance(attr, float):
+                    co.attributes[key] = round(attr, rounding)
+                elif isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
                     co.attributes[key] = attr.isoformat()
                 elif isinstance(attr, timedelta):
                     co.attributes[key] = str(attr)
