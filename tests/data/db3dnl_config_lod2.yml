@@ -1,0 +1,27 @@
+geometries:
+  lod: 2.2
+  type: Solid
+
+database:
+  dbname: db3dnl
+  host: localhost
+  port:
+  user: cjdb_tester
+  password: cjdb_test
+
+tile_index:
+  schema: tile_index
+  table: tile_index_sub
+  srid: 7415
+  field:
+    pk: id
+    geometry: geom
+
+cityobject_type:
+  Building:
+    - schema: public
+      table: lod2_sample
+      field:
+        pk: ogc_fid
+        geometry: wkb_geometry
+        cityobject_id: identificatie

@@ -131,6 +131,19 @@ def nl_multi(data_dir):
     with open(data_dir / 'nl_multi.geojson', 'r') as fo:
         yield fo
 
+@pytest.fixture(scope='function',
+                params=[{"postgis-10-2.5": 5557}, {"postgis-13-3.0": 5558}],
+                ids=["postgis-10-2.5", "postgis-13-3.0"])
+def cfg_db3dnl_lod2(request, data_dir):
+    """YAML config with the LoD2.2 table"""
+    p = data_dir / 'db3dnl_config_lod2.yml'
+    with open(p, 'r') as fo:
+        c = configure.parse_configuration(fo)
+        postgis_docker, port = list(request.param.items())[0]
+        c["database"]["port"] = port
+        return c
+
+
 # ------------------------------------------------------------------------- cjdb
 
 @pytest.fixture(scope='function')
