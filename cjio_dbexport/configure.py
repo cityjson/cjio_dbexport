@@ -120,15 +120,18 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
     cfg_updated = cfg
     for cotype, relations in cfg['cityobject_type'].items():
         for i, relation in enumerate(relations):
+            # If the lod is declared globally
             if isinstance(relation['field']['geometry'], str):
-                lod_key = f"lod{cfg['geometries']['lod']}"
+                # We create the LoD key as '1.3' -> 'lod13'
+                lod_key = f"lod{cfg['geometries']['lod'].replace('.','')}"
                 lod_name_type = {
                     lod_key: {
                         'name': relation['field']['geometry'],
-                        'type': 'MultiSurface'
+                        'type': cfg['geometries']['type']
                     }
                 }
                 cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = lod_name_type
+            # if the lod is declared per table
             elif isinstance(relation['field']['geometry'], dict):
                 lod_name_type = {}
                 for lod_key in relation['field']['geometry']:

@@ -312,7 +312,8 @@ def to_ewkt(polygon, srid) -> str:
     return ewkt
 
 def lod_to_string(lod: Union[int, float]) -> Union[str, None]:
-    """Convert and LoD integer or float to string."""
+    """Convert and LoD integer or float to string.
+    """
     if lod is None:
         return None
     elif isinstance(lod, str):
