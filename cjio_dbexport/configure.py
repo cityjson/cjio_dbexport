@@ -182,8 +182,13 @@ def parse_configuration(config: TextIO) -> Mapping:
         lod_num = cfg_stream['geometries']['lod']
         cfg_stream['geometries']['lod'] = utils.lod_to_string(lod_num)
     except KeyError:
-        log.exception("Did not find the 'geometry.lod' key in the configuration file")
-        raise KeyError("Did not find the 'geometry.lod' key in the configuration file")
+        log.warning("Did not find a global LoD declaration 'geometries.lod' in the configuration file. Using per-table values if they exists...")
+        if 'geometries' in cfg_stream:
+            cfg_stream['geometries']['lod'] = None
+        else:
+            log.warning(
+                "Did not find a global geometry type declaration 'geometries.type' in the configuration file. Using per-table values if they exists...")
+            cfg_stream['geometries'] = {'lod': None, 'type': None}
     except ValueError as e:
         log.exception(e)
         raise

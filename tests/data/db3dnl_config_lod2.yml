@@ -1,7 +1,3 @@
-geometries:
-  lod: 2.2
-  type: Solid
-
 database:
   dbname: db3dnl
   host: localhost
@@ -23,5 +19,9 @@ cityobject_type:
       table: lod2_sample
       field:
         pk: ogc_fid
-        geometry: wkb_geometry
+        geometry:
+          lod22:
+            name: wkb_geometry
+            type: Solid
+            semantics: labels
         cityobject_id: identificatie
