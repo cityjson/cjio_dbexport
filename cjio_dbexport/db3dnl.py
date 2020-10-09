@@ -302,7 +302,7 @@ def build_query(
     epsg = 7415
     # Exclude columns from the selection
     table_fields = conn.get_fields(features.schema + features.table)
-    if features.field.exclude:
+    if 'exclude' in features.field.__dict__:
         exclude = [f.string for f in features.field.exclude if f is not None]
     else:
         exclude = []

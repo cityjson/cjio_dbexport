@@ -119,6 +119,18 @@ class TestIntegration:
                                       'cityobject_type'], tile_list=['gb2', ])
         dbexport = list(export_gen)
 
+    def test_query_no_export(self, data_dir, cfg_db3dnl, db3dnl_db,
+                                  db3dnl_4tiles_pickle):
+        """Test that the query works when the 'exclude' key is not present"""
+        for name, cotype in cfg_db3dnl['cityobject_type'].items():
+            for tablename in cotype:
+                tablename['field'].pop('exclude')
+        export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
+                                  tile_index=cfg_db3dnl['tile_index'],
+                                  cityobject_type=cfg_db3dnl[
+                                      'cityobject_type'], tile_list=['gb2', ])
+        dbexport = list(export_gen)
+
     def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl, caplog):
         caplog.set_level(logging.DEBUG)
         # dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
