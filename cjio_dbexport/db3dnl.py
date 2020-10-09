@@ -135,6 +135,7 @@ def dbexport_to_cityobjects(dbexport, cfg):
                 cfg_geom = _c["field"]["geometry"]
                 cfg_geom['lod'] = _c["field"].get('lod')
                 cfg_geom['semantics'] = _c["field"].get('semantics')
+                cfg_geom['semantics_mapping'] = cfg.get('semantics_mapping')
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
             tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom,
@@ -176,7 +177,7 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
     geometries = []
     lod_column = cfg_geom.get('lod')
     semantics_column = cfg_geom.get('semantics')
-    for lod_key in [k for k in cfg_geom if k != 'lod' and k != 'semantics']:
+    for lod_key in [k for k in cfg_geom if k != 'lod' and k != 'semantics' and k != 'semantics_mapping']:
         if lod_column:
             lod = record[lod_column]
         else:
@@ -194,22 +195,21 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
             geom.surfaces = record_to_surfaces(
                 geomtype=geomtype,
                 boundary=geom.boundaries,
-                semantics=record[semantics_column])
+                semantics=record[semantics_column],
+                semantics_mapping=cfg_geom['semantics_mapping']
+            )
         geometries.append(geom)
     return geometries
 
 
 def record_to_surfaces(geomtype: str, boundary: Sequence,
-                        semantics: Sequence[int]) -> dict:
+                        semantics: Sequence[int], semantics_mapping: dict) -> dict:
     """Create a CityJSON Semantic Surface object from an array of labels and a
     CityJSON geometry representation.
     """
-    surfaces = {
-        0: {'surface_idx': [], 'type': 'GroundSurface'},
-        1: {'surface_idx': [], 'type': 'RoofSurface'},
-        2: {'surface_idx': [], 'type': 'WallSurface'},
-        3: {'surface_idx': [], 'type': 'InnerWallSurface'}
-    }
+    surfaces = {}
+    for key, type in semantics_mapping.items():
+        surfaces[key] = {'surface_idx': [], 'type': type}
     if geomtype == "Solid":
         if len(boundary) > 1:
             log.warning("Cannot assign semantics to Solids with inner shell(s)")

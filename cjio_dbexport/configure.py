@@ -33,6 +33,45 @@ from cjio_dbexport import utils
 log = logging.getLogger(__name__)
 
 
+def parse_configuration(config: TextIO) -> Mapping:
+    """Parse the configuration file.
+
+    :return: The configuration as a dict
+    """
+    try:
+        cfg_stream = yaml.load(config, Loader=yaml.FullLoader)
+        log.debug(cfg_stream)
+    except Exception as e:
+        log.exception(e)
+        raise
+    try:
+        verify_cotypes(cfg_stream)
+    except ValueError as e:
+        log.exception(e)
+        raise
+    try:
+        lod_num = cfg_stream['geometries']['lod']
+        cfg_stream['geometries']['lod'] = utils.lod_to_string(lod_num)
+    except KeyError:
+        log.warning("Did not find a global LoD declaration 'geometries.lod' in the configuration file. Using per-table values if they exists...")
+        if 'geometries' in cfg_stream:
+            cfg_stream['geometries']['lod'] = None
+        else:
+            log.warning(
+                "Did not find a global geometry type declaration 'geometries.type' in the configuration file. Using per-table values if they exists...")
+            cfg_stream['geometries'] = {'lod': None, 'type': None}
+    except ValueError as e:
+        log.exception(e)
+        raise
+    try:
+        cfg_updated = add_lod_keys(cfg_stream)
+        cfg_stream = cfg_updated
+    except ValueError as e:
+        log.exception(e)
+        raise
+    return cfg_stream
+
+
 def verify_cotypes(cfg: Mapping) -> bool:
     """Verify that the configuration only contains the allowed CityObject types.
 
@@ -155,51 +194,8 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
                         'name': relation['field']['geometry'][lod_key]['name'],
                         'type': type
                     }
-                    # # We only take the semantic values when the geometry type and LoD
-                    # # is declared explicitly for the table
-                    # if 'semantics' in relation['field']['geometry'][lod_key]:
-                    #     lod_name_type[lod_key]['semantics'] = relation['field']['geometry'][lod_key]['semantics']
                 cfg_updated['cityobject_type'][cotype][i]['field']['geometry'] = lod_name_type
             else:
                 raise ValueError(f"The 'geometry' field mapping must be a string"
                                  f" or a mapping in {relation}")
     return cfg_updated
-
-# TODO refactor: move to the top
-def parse_configuration(config: TextIO) -> Mapping:
-    """Parse the configuration file.
-
-    :return: The configuration as a dict
-    """
-    try:
-        cfg_stream = yaml.load(config, Loader=yaml.FullLoader)
-        log.debug(cfg_stream)
-    except Exception as e:
-        log.exception(e)
-        raise
-    try:
-        verify_cotypes(cfg_stream)
-    except ValueError as e:
-        log.exception(e)
-        raise
-    try:
-        lod_num = cfg_stream['geometries']['lod']
-        cfg_stream['geometries']['lod'] = utils.lod_to_string(lod_num)
-    except KeyError:
-        log.warning("Did not find a global LoD declaration 'geometries.lod' in the configuration file. Using per-table values if they exists...")
-        if 'geometries' in cfg_stream:
-            cfg_stream['geometries']['lod'] = None
-        else:
-            log.warning(
-                "Did not find a global geometry type declaration 'geometries.type' in the configuration file. Using per-table values if they exists...")
-            cfg_stream['geometries'] = {'lod': None, 'type': None}
-    except ValueError as e:
-        log.exception(e)
-        raise
-    try:
-        cfg_updated = add_lod_keys(cfg_stream)
-        cfg_stream = cfg_updated
-    except ValueError as e:
-        log.exception(e)
-        raise
-    return cfg_stream

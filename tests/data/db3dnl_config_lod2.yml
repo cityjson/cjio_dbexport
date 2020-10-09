@@ -1,4 +1,8 @@
-
+semantics_mapping:
+  0: "GroundSurface"
+  1: "RoofSurface"
+  2: "WallSurface"
+  3: "InnerWallSurface"
 
 database:
   dbname: db3dnl
