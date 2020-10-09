@@ -2,6 +2,18 @@
 Changelog
 ==========
 
+0.8.0 (2020-10-10)
+------------------
+
+Fixes
+*****
+* Do not require a global geometry type and lod declaration
+* LoD parsing when lod is declared globally and using the improved LoD-s
+
+Adds
+****
+* Semantic surface export
+
 0.7.0 (2020-10-09)
 ------------------
 
