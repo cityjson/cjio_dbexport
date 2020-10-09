@@ -2,6 +2,22 @@
 Changelog
 ==========
 
+0.7.0 (2020-10-09)
+------------------
+
+Fixes
+*****
+* Incorrect 'tablename' was passed down within query()
+* Travis-CI for the Ubunutu exe
+
+Adds
+****
+* Complete type conversion for the `date`, `time/tz`, `timestamp/tz`, `interval` postgres types
+* Docker setup for testing
+* Possible to set the LoD per feature if the LoD name is stored in a column
+* Extended CityJSON metadata
+* Update the exe-s to Python 3.8
+
 0.6.1 (2020-07-15)
 -------------------
 
