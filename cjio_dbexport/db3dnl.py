@@ -459,7 +459,7 @@ def query_bbox(
                {geometries}
         FROM
             {tbl}
-        WHERE ST_Intersects(
+        WHERE ST_3DIntersects(
             {geometry_0},
             ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
             )
@@ -469,7 +469,7 @@ def query_bbox(
 
     sql_where_attr_intersects = sql.SQL(
         """
-    WHERE ST_Intersects(
+    WHERE ST_3DIntersects(
         a.{geometry_0},
         ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
         )
@@ -502,7 +502,7 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
             {geometries}
         FROM
             {tbl}
-        WHERE ST_Intersects(
+        WHERE ST_3DIntersects(
             {geometry_0},
             {poly}
             )
@@ -512,7 +512,7 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
 
     sql_where_attr_intersects = sql.SQL(
         """
-    WHERE ST_Intersects(
+    WHERE ST_3DIntersects(
         a.{geometry_0},
         {poly}
         )
@@ -558,7 +558,7 @@ def query_tiles_in_list(
         SELECT a.*
         FROM {tbl} a,
             extent t
-        WHERE ST_Intersects(t.geom,
+        WHERE ST_3DIntersects(t.geom,
                             a.{tbl_geom})),
     polygons AS (
         SELECT 
@@ -570,7 +570,7 @@ def query_tiles_in_list(
 
     sql_where_attr_intersects = sql.SQL(
         """
-    ,extent t WHERE ST_Intersects(t.geom, a.{tbl_geom})
+    ,extent t WHERE ST_3DIntersects(t.geom, a.{tbl_geom})
     """
     ).format(**query_params)
 
