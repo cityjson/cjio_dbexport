@@ -162,7 +162,7 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
             # If the lod is declared globally
             if isinstance(relation['field']['geometry'], str):
                 # We create the LoD key as '1.3' -> 'lod13'
-                lod_key = f"lod{cfg['geometries']['lod'].replace('.','')}"
+                lod_key = f"lod{str(cfg['geometries']['lod']).replace('.','')}"
                 lod_name_type = {
                     lod_key: {
                         'name': relation['field']['geometry'],
