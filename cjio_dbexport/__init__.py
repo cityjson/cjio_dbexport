@@ -2,4 +2,4 @@
 
 __author__ = """Balázs Dukai"""
 __email__ = 'b.dukai@tudelft.nl'
-__version__ = '0.7.0'
+__version__ = '0.8.0'
