@@ -277,6 +277,50 @@ Furthermore, it is possible to assign different a different LoD per object. In t
 When the LoD is declared on multiple levels for a CityObject (e.g. on global, per column or per object) then the lower-level declaration overrules the higher-level one. For instance the per-column declaration overrules the global.
 
 
+Exporting semantic surfaces
+***************************
+
+In order to export LoD2 models with semantic surfaces, the semantics need to be in the same table as the geometry. The semantics need to be stored as an array of integers where,
+
+1. the array has the same length and order as the surfaces of the geometry,
+2. the integers in the array represent the semantics.
+
+This is almost the same as the ``values`` member of a `Semantic Surface object <https://www.cityjson.org/specs/1.0.1/#semantic-surface-object>`_, with some distinctions,
+
++ Null values are not supported in the array,
++ there is no distinction in the array-nesting for the different geometry types.
+
+An example of such a semantics array would be implemented as ``'{0,0,2,2,2,2,2,2,2,2,1,1}'::int2[]`` in PostgreSQL.
+
+Note that the semantics array above is 12 elements long, thus the first element points to the first surface of the geometry boundary (the MultiPolygonZ), while the 12th element points to the 12th surface of the geometry boundary.
+
+The integer mapping of the semantic values are declared at the root level of the  configuration file.
+
+Additionally, in the ``semantics`` member of the table fields you need to declare the name of the column in which the semantic arrays are stored.
+
+It is not possible to export multiple LoDs into the same CityJSON file when exporting semantics too.
+
+.. code-block::
+
+    semantics_mapping:
+      0: "GroundSurface"
+      1: "RoofSurface"
+      2: "WallSurface"
+
+    cityobject_type:
+      Building:
+        - schema: public
+          table: lod2_sample
+          field:
+            pk: ogc_fid
+            geometry:
+              lod22:
+                name: wkb_geometry
+                type: Solid
+            semantics: labels
+            cityobject_id: id_column
+
+
 Creating a tile index
 *********************
 
@@ -308,7 +352,7 @@ accordingly,
 Limitations
 ------------
 
-+ Only LoD0-1, no semantics, no appearances
++ No appearances
 
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
 
