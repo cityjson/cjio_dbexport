@@ -1,5 +1,5 @@
 --index-url https://pypi.org/simple/
 
--e git+https://github.com/cityjson/cjio@develop#egg=cjio
+-e git+https://github.com/cityjson/cjio@master#egg=cjio
 
 -e .
