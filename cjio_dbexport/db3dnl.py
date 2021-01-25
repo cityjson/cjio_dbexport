@@ -182,8 +182,9 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
             lod = record[lod_column]
         else:
             lod = utils.parse_lod_value(lod_key)
+        lod_float = round(float(lod), 1)
         geomtype = cfg_geom[lod_key]["type"]
-        geom = Geometry(type=geomtype, lod=lod)
+        geom = Geometry(type=geomtype, lod=lod_float)
         if geomtype == "Solid":
             solid = [
                 record.get(settings.geom_prefix + lod_key),
