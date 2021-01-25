@@ -180,9 +180,9 @@ class TestIntegration:
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         info = json.loads(cm.get_info(long=True))
-        assert '1' in info["level_of_detail"]
-        assert '1.2' in info["level_of_detail"]
-        assert '1.3' in info["level_of_detail"]
+        assert 1.0 in info["level_of_detail"]
+        assert 1.2 in info["level_of_detail"]
+        assert 1.3 in info["level_of_detail"]
 
     def test_index(self, data_dir, nl_poly):
         tilesize = (10000, 10000)
