@@ -14,7 +14,7 @@ requirements = [
     'Click>=7.0',
     'psycopg2>=2.8',
     'PyYAML>=5.1.2',
-    'cjio @ git+https://git@github.com/cityjson/cjio@master#egg=cjio'
+    'cjio == 0.6.0'
 ]
 
 setup_requirements = ['pytest-runner', ]
