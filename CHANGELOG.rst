@@ -2,6 +2,14 @@
 Changelog
 ==========
 
+0.8.4 (2021-01-25)
+------------------
+
+Fixes
+*****
+* LoD is a float now, as it is required by the specs
+* Attribute excludes were ignored
+
 0.8.0 (2020-10-10)
 ------------------
 
