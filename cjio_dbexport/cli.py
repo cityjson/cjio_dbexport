@@ -29,7 +29,6 @@ import logging
 import sys
 from pathlib import Path
 from io import StringIO
-from concurrent.futures import ProcessPoolExecutor, as_completed
 from multiprocessing import freeze_support
 
 from psycopg2 import Error as pgError
@@ -118,20 +117,7 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
     path = Path(dir).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
-    conn = db.Db(**ctx.obj['cfg']['database'])
-    if not conn.create_functions():
-        raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
-    tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
-    try:
-        tile_list = db3dnl.with_list(conn=conn, tile_index=tile_index,
-                                     tile_list=tiles)
-        click.echo(f"Found {len(tile_list)} tiles in the tile index.")
-
-    except BaseException as e:
-        raise click.ClickException(f"Could not generate tile_list. Check the "
-                                   f"logs for details.\n{e}")
-    finally:
-        conn.close()
+    tile_list = db3dnl.get_tile_list(ctx.obj["cfg"], tiles)
 
     if merge:
         filepath = (path / 'merged').with_suffix('.json')
@@ -152,24 +138,7 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
     else:
         click.echo(f"Exporting {len(tile_list)} tiles...")
         click.echo(f"Output directory: {path}")
-        failed = []
-        futures = []
-        with ProcessPoolExecutor(max_workers=jobs) as executor:
-            for tile in tile_list:
-                filepath = (path / str(tile)).with_suffix('.json')
-                futures.append(executor.submit(db3dnl.export, tile, filepath,
-                                               ctx.obj['cfg']))
-
-            for i,future in enumerate(as_completed(futures)):
-                success, filepath = future.result()
-                if success:
-                    click.echo(
-                        f"[{i + 1}/{len(tile_list)}] Saved {filepath.name}")
-                else:
-                    failed.append(filepath.stem)
-            click.echo(
-                f"Done. Exported {len(tile_list) - len(failed)} tiles. "
-                f"Failed {len(failed)} tiles: {failed}")
+        db3dnl.export_tiles_multiprocess(ctx.obj['cfg'], jobs, path, tile_list)
         return 0
 
 

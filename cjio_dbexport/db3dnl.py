@@ -25,11 +25,14 @@ SOFTWARE.
 """
 import logging
 import re
+from concurrent.futures._base import as_completed
+from concurrent.futures.process import ProcessPoolExecutor
 from datetime import date, time, datetime, timedelta
 from typing import Mapping, Sequence, Tuple, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 
+import click
 from click import ClickException, echo
 from cjio import cityjson
 from cjio.models import CityObject, Geometry
@@ -38,6 +41,48 @@ from psycopg2 import sql, pool, Error as pgError
 from cjio_dbexport import settings, db, utils
 
 log = logging.getLogger(__name__)
+
+
+def get_tile_list(cfg, tiles):
+    conn = db.Db(**cfg['database'])
+    if not conn.create_functions():
+        raise BaseException(
+            "Could not create the required functions in PostgreSQL, check the logs for details")
+    tile_index = db.Schema(cfg['tile_index'])
+    try:
+        tile_list = with_list(conn=conn, tile_index=tile_index,
+                                     tile_list=tiles)
+        log.info(f"Found {len(tile_list)} tiles in the tile index.")
+
+    except BaseException as e:
+        raise BaseException(f"Could not generate tile_list. Check the logs for details.\n{e}")
+    finally:
+        conn.close()
+    return tile_list
+
+
+def export_tiles_multiprocess(cfg, jobs, path, tile_list):
+    failed = []
+    futures = []
+    with ProcessPoolExecutor(max_workers=jobs) as executor:
+        for tile in tile_list:
+            filepath = (path / str(tile)).with_suffix('.json')
+            futures.append(executor.submit(export, tile, filepath,
+                                           cfg))
+
+        for i, future in enumerate(as_completed(futures)):
+            success, filepath = future.result()
+            if success:
+                log.info(
+                    f"[{i + 1}/{len(tile_list)}] Saved {filepath.name}")
+            else:
+                failed.append(filepath.stem)
+        log.info(
+            f"Done. Exported {len(tile_list) - len(failed)} tiles. "
+            f"Failed {len(failed)} tiles: {failed}")
+        return {"exported": len(tile_list) - len(failed),
+                "nr_failed:": len(failed),
+                "failed": failed}
 
 
 def export(tile, filepath, cfg):
