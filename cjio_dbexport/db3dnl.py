@@ -157,11 +157,11 @@ def convert(dbexport, cfg):
     # Set EPSG
     epsg = 7415
     # Set rounding for floating point attributes
-    cfg["rounding"] = 4
+    rounding = 4
     log.info(
-        f"Floating point attributes are rounded up to {cfg['rounding']} decimal digits")
+        f"Floating point attributes are rounded up to {rounding} decimal digits")
     cm = cityjson.CityJSON()
-    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg))
+    cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg, rounding=rounding))
     log.debug("Referencing geometry")
     cityobjects, vertex_lookup = cm.reference_geometry()
     log.debug("Adding to json")
@@ -174,7 +174,7 @@ def convert(dbexport, cfg):
     return cm
 
 
-def dbexport_to_cityobjects(dbexport, cfg):
+def dbexport_to_cityobjects(dbexport, cfg, rounding=4):
     for coinfo, tabledata in dbexport:
         cotype, cotable = coinfo
         cfg_geom = None
@@ -187,7 +187,7 @@ def dbexport_to_cityobjects(dbexport, cfg):
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
             tabledata=tabledata, cotype=cotype, cfg_geom=cfg_geom,
-            rounding=cfg['rounding']
+            rounding=rounding
         )
         for coid, co in cityobject_generator:
             yield coid, co
