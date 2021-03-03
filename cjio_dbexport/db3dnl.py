@@ -31,6 +31,7 @@ from datetime import date, time, datetime, timedelta
 from typing import Mapping, Sequence, Tuple, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
+from pathlib import Path
 
 import click
 from click import ClickException, echo
@@ -61,9 +62,11 @@ def get_tile_list(cfg, tiles):
     return tile_list
 
 
-def export_tiles_multiprocess(cfg, jobs, path, tile_list):
+def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List):
     failed = []
     futures = []
+    if not path.exists():
+        raise NotADirectoryError(str(path))
     with ProcessPoolExecutor(max_workers=jobs) as executor:
         for tile in tile_list:
             filepath = (path / str(tile)).with_suffix('.json')
@@ -658,6 +661,7 @@ def tiles_in_index(
     """
     ).format(**query_params)
     log.debug(conn.print_query(query))
+    # FIXME: should create a tuple here or not? see also 'with_list'
     in_index = [t[0] for t in conn.get_query(query)]
     not_found = set(tile_list) - set(in_index)
     if len(not_found) > 0:

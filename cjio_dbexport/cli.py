@@ -112,11 +112,10 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
     the object from all tiles from the tile_index.
 
-    DIR is the path to the output directory.
+    DIR is the path to the output directory. It will be created if doesn't exist.
     """
     path = Path(dir).resolve()
-    if not Path(path.parent).exists():
-        raise NotADirectoryError(f"Directory {path.parent} not exists")
+    path.mkdir(parents=True, exist_ok=True)
     tile_list = db3dnl.get_tile_list(ctx.obj["cfg"], tiles)
 
     if merge:
