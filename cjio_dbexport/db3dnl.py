@@ -408,9 +408,16 @@ def build_query(
         polygons_sub, attr_where, extent_sub = query_bbox(features, bbox, epsg)
     elif tile_list:
         log.info(f"Exporting with a list of tiles {tile_list}")
-        polygons_sub, attr_where, extent_sub = query_tiles_in_list(
-            features=features, tile_index=tile_index, tile_list=tile_list
-        )
+        if features.field.get("tile"):
+            log.debug(f"Found 'tile' tag in the cityobject table, matching objects on tile ID")
+            polygons_sub, attr_where, extent_sub = query_tiles_in_list(
+                features=features, tile_index=tile_index, tile_list=tile_list,
+                with_intersection=False
+            )
+        else:
+            polygons_sub, attr_where, extent_sub = query_tiles_in_list(
+                features=features, tile_index=tile_index, tile_list=tile_list
+            )
     elif extent:
         log.info(f"Exporting with polygon extent")
         ewkt = utils.to_ewkt(polygon=extent, srid=epsg)
@@ -574,9 +581,20 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
 
 
 def query_tiles_in_list(
-    features: db.Schema, tile_index: db.Schema, tile_list: Sequence[str]
+    features: db.Schema, tile_index: db.Schema, tile_list: Sequence[str],
+        with_intersection: bool = True
 ) -> Tuple[sql.Composed, ...]:
-    """Build a subquery of the geometry in the tile list."""
+    """Build a subquery of the geometry in the tile list.
+    :param features:
+    :param tile_index:
+    :param tile_list:
+    :param with_intersection: If True, use an intersection query (3DIntersects) for
+        finding the objects that intersect with the tile boundaries. If False, filter
+        the objects whose tile ID is in the `tile_list`. If False, it expects that the
+        table contains a column with a one-to-one mapping of objects and tile IDs. This
+        column is declared in the cityobject_types.<CO>.field.tile tag.
+    :return:
+    """
     tl_tup = tuple(tile_list)
     # One geometry column is enough to restrict the selection to the BBOX
     lod = list(features.field.geometry.keys())[0]
@@ -585,6 +603,7 @@ def query_tiles_in_list(
         "tbl_pk": features.field.pk.sqlid,
         "tbl_coid": features.field.cityobject_id.sqlid,
         "tbl_geom": getattr(features.field.geometry, lod).name.sqlid,
+        "tbl_tile": sql.Identifier(features.field.get("tile", "")),
         "geometries": sql_cast_geometry(features),
         "tile_index": tile_index.schema + tile_index.table,
         "tx_geom": tile_index.field.geometry.sqlid,
@@ -592,36 +611,53 @@ def query_tiles_in_list(
         "tile_list": sql.Literal(tl_tup),
     }
 
-    sql_extent = sql.SQL(
+    if with_intersection:
+        sql_extent = sql.SQL(
+            """
+        extent AS (
+            SELECT ST_Union({tx_geom}) geom
+            FROM {tile_index}
+            WHERE {tx_pk} IN {tile_list}),
         """
-    extent AS (
-        SELECT ST_Union({tx_geom}) geom
-        FROM {tile_index}
-        WHERE {tx_pk} IN {tile_list}),
-    """
-    ).format(**query_params)
+        ).format(**query_params)
 
-    sql_polygon = sql.SQL(
+        sql_polygon = sql.SQL(
+            """
+        geom_in_extent AS (
+            SELECT a.*
+            FROM {tbl} a,
+                extent t
+            WHERE ST_3DIntersects(t.geom,
+                                a.{tbl_geom})),
+        polygons AS (
+            SELECT 
+                {tbl_pk} pk,
+                {geometries}
+            FROM geom_in_extent b)
         """
-    geom_in_extent AS (
-        SELECT a.*
-        FROM {tbl} a,
-            extent t
-        WHERE ST_3DIntersects(t.geom,
-                            a.{tbl_geom})),
-    polygons AS (
-        SELECT 
-            {tbl_pk} pk,
-            {geometries}
-        FROM geom_in_extent b)
-    """
-    ).format(**query_params)
+        ).format(**query_params)
 
-    sql_where_attr_intersects = sql.SQL(
+        sql_where_attr_intersects = sql.SQL(
+            """
+        ,extent t WHERE ST_3DIntersects(t.geom, a.{tbl_geom})
         """
-    ,extent t WHERE ST_3DIntersects(t.geom, a.{tbl_geom})
-    """
-    ).format(**query_params)
+        ).format(**query_params)
+    else:
+        sql_polygon = sql.SQL(
+        """
+        polygons AS (
+            SELECT 
+                {tbl_pk} pk,
+                {geometries}
+            FROM {tbl} b
+            WHERE b.{tbl_tile} IN {tile_list}
+            )
+        """
+        ).format(**query_params)
+
+        sql_where_attr_intersects = sql.Composed("")
+
+        sql_extent = sql.Composed("")
 
     return sql_polygon, sql_where_attr_intersects, sql_extent
 

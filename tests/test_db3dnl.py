@@ -71,7 +71,7 @@ class TestParsing:
         assert 'Exporting with a list of tiles' in caplog.text
 
 
-@pytest.mark.db3dnl
+# @pytest.mark.db3dnl
 class TestIntegration:
     """Integration tests"""
 
@@ -110,6 +110,31 @@ class TestIntegration:
         dbexport = list(export_gen)
         with open(db3dnl_4tiles_pickle, 'wb') as fo:
             pickle.dump(dbexport, fo)
+
+    def test_export_tile_list_without_intersect(self, data_dir, cfg_db3dnl, db3dnl_db,
+                              db3dnl_4tiles_pickle):
+        """Export a list of tiles when the object table has a tile ID column so they
+        can be filtered directly on the tile id
+
+        Needs:
+
+            CREATE OR REPLACE VIEW building_tiles AS
+            SELECT b.*, i.id AS _tile_id
+            FROM building b
+                     JOIN tile_index.tile_index_sub i
+                          ON st_within(st_centroid(b.wkb_geometry), i.geom);
+        """
+
+        co = {"Building": cfg_db3dnl['cityobject_type']["Building"]}
+        co["Building"][0]["table"] = "building_tiles"
+        co["Building"][0]["field"]["tile"] = "_tile_id"
+        export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
+                                  tile_index=cfg_db3dnl['tile_index'],
+                                  cityobject_type=cfg_db3dnl[
+                                      'cityobject_type'],
+                                  tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+        dbexport = list(export_gen)
+
 
     def test_export_tile_list_one(self, data_dir, cfg_db3dnl, db3dnl_db,
                                   db3dnl_4tiles_pickle):
