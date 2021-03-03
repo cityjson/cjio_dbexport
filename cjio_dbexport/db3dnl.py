@@ -44,7 +44,7 @@ from cjio_dbexport import settings, db, utils
 log = logging.getLogger(__name__)
 
 
-def get_tile_list(cfg, tiles):
+def get_tile_list(cfg: Mapping, tiles: List) -> List:
     conn = db.Db(**cfg['database'])
     if not conn.create_functions():
         raise BaseException(
@@ -62,7 +62,7 @@ def get_tile_list(cfg, tiles):
     return tile_list
 
 
-def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List):
+def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List) -> Mapping:
     failed = []
     futures = []
     if not path.exists():
