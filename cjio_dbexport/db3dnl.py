@@ -580,7 +580,7 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
     ).format(**query_params)
 
     sql_where_attr_intersects = sql.SQL(
-        """
+    """
     WHERE ST_3DIntersects(
         a.{geometry_0},
         {poly}
@@ -668,7 +668,7 @@ def query_tiles_in_list(
         """
         ).format(**query_params)
 
-        sql_where_attr_intersects = sql.Composed("")
+        sql_where_attr_intersects = sql.Composed("WHERE b.{tbl_tile} IN {tile_list}")
 
         sql_extent = sql.Composed("")
 
