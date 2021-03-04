@@ -62,7 +62,8 @@ def get_tile_list(cfg: Mapping, tiles: List) -> List:
     return tile_list
 
 
-def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List) -> Mapping:
+def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List,
+                              zip: bool = False) -> Mapping:
     failed = []
     futures = []
     if not path.exists():
@@ -71,7 +72,7 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
         for tile in tile_list:
             filepath = (path / str(tile)).with_suffix('.json')
             futures.append(executor.submit(export, tile, filepath,
-                                           cfg))
+                                           cfg, zip))
 
         for i, future in enumerate(as_completed(futures)):
             success, filepath = future.result()
@@ -88,7 +89,7 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
                 "failed": failed}
 
 
-def export(tile, filepath, cfg):
+def export(tile, filepath, cfg, zip: bool = False):
     """Export a tile from PostgreSQL, convert to CityJSON and write to file."""
     try:
         dbexport = query(
@@ -108,15 +109,27 @@ def export(tile, filepath, cfg):
     if cm is not None:
         cm.j["metadata"]["fileIdentifier"] = filepath.name
         try:
-            with open(filepath, "w") as fout:
-                json_str = json.dumps(cm.j, separators=(',', ':'))
-                fout.write(json_str)
+            json_str = json.dumps(cm.j, separators=(',', ':'))
+            if zip:
+                filepath = utils.write_zip(data=json_str.encode("utf-8"),
+                                           filename=filepath.name,
+                                           outdir=filepath.parent)
+            else:
+                with open(filepath, "w") as fout:
+                    fout.write(json_str)
             return True, filepath
         except IOError as e:
             log.error(f"Invalid output file: {filepath}\n{e}")
             return False, filepath
+        except BaseException as e:
+            log.exception(e)
+            return False, filepath
         finally:
             del cm
+            try:
+                del json_str
+            except NameError:
+                pass
     else:
         log.error(
             f"Failed to create CityJSON from {filepath.stem},"

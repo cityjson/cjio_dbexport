@@ -3,6 +3,7 @@
 import logging
 import math
 import pytest
+from pathlib import Path
 from cjio_dbexport import utils
 
 log = logging.getLogger(__name__)
@@ -101,3 +102,12 @@ class TestParsing:
     ])
     def test_lod_param(self, lod_key, lod_str):
         assert utils.parse_lod_value(lod_key) == lod_str
+
+
+def test_zip_json(data_dir):
+    """Write a zipped json with various compression"""
+    with (data_dir / "ic3.json").open("r") as fin:
+        data = fin.read()
+    utils.write_zip(data=data.encode("utf-8"),
+                    filename="ic3.json",
+                    outdir=Path("/tmp"))

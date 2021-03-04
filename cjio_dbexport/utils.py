@@ -28,6 +28,9 @@ import math
 from statistics import mean
 from typing import Iterable, Tuple, Mapping, TextIO, Union
 import logging
+import zipfile, gzip
+from platform import platform
+from pathlib import Path
 
 log = logging.getLogger(__name__)
 
@@ -340,3 +343,25 @@ def parse_lod_value(lod_key: str) -> str:
         return f"{value[0]}.{value[1]}"
     else:
         raise ValueError(f"Invalid LoD value '{value}' in key {lod_key}")
+
+
+def write_zip(data: bytes, filename: str, outdir: Path):
+    """Write out a citymodel to a zip file.
+
+    On Linux and MacOS it uses Gzip, on Windows it uses Zip.
+
+    :param data: Data to compress into a file
+    :param filename: Filename to write
+    :param outdir: Output directory
+    """
+    outfile = outdir / filename
+    if "windows" in platform().lower():
+        outzip = outfile.with_suffix(".zip")
+        with zipfile.ZipFile(file=outzip, mode="w") as zout:
+            zout.writestr(zinfo_or_arcname=filename,
+                          data=data)
+    else:
+        outzip = outfile.with_suffix(".json.gz")
+        with gzip.open(outzip, "w") as zout:
+            zout.write(data)
+    return outzip

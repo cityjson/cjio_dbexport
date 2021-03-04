@@ -101,12 +101,14 @@ def export_all_cmd(ctx, filename):
 @click.command('export_tiles')
 @click.option('--merge', is_flag=True,
               help='Merge the requested tiles into a single file')
+@click.option('--zip', is_flag=True,
+              help='Zip the output file. On Linux and MacOS its Gzip.')
 @click.option('--jobs', '-j', type=int, default=1,
               help='The number of parallel jobs to run')
 @click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
+def export_tiles_cmd(ctx, tiles, merge, zip, jobs, dir):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
@@ -137,7 +139,8 @@ def export_tiles_cmd(ctx, tiles, merge, jobs, dir):
     else:
         click.echo(f"Exporting {len(tile_list)} tiles...")
         click.echo(f"Output directory: {path}")
-        db3dnl.export_tiles_multiprocess(ctx.obj['cfg'], jobs, path, tile_list)
+        db3dnl.export_tiles_multiprocess(ctx.obj['cfg'], jobs, path, tile_list,
+                                         zip=zip)
         return 0
 
 
