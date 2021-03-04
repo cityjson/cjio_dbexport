@@ -668,7 +668,9 @@ def query_tiles_in_list(
         """
         ).format(**query_params)
 
-        sql_where_attr_intersects = sql.Composed("WHERE b.{tbl_tile} IN {tile_list}")
+        sql_where_attr_intersects = sql.SQL("""
+        WHERE {tbl_tile} IN {tile_list}
+        """).format(**query_params)
 
         sql_extent = sql.Composed("")
 
