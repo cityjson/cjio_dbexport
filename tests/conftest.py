@@ -134,7 +134,7 @@ def nl_multi(data_dir):
 
 @pytest.fixture(scope='function')
 def cfg_lod2_path(data_dir):
-    return data_dir / 'db3dnl_config_lod2.yml'
+    return data_dir / 'db3dbag_config_lod2.yml'
 
 @pytest.fixture(scope='function',
                 params=[{"postgis-10-2.5": 5557}, {"postgis-13-3.0": 5558}],
@@ -149,16 +149,11 @@ def cfg_lod2_path_param(request, cfg_lod2_path, data_output_dir):
         yaml.dump(c, fo)
     return outpath
 
-@pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-13-3.0": 5558}],
-                ids=["postgis-10-2.5", "postgis-13-3.0"])
-def cfg_lod2(request,cfg_lod2_path, data_dir):
+@pytest.fixture(scope='function')
+def cfg_lod2(cfg_lod2_path):
     """YAML config with the LoD2.2 table"""
     with open(cfg_lod2_path, 'r') as fo:
-        c = configure.parse_configuration(fo)
-        postgis_docker, port = list(request.param.items())[0]
-        c["database"]["port"] = port
-        return c
+        return configure.parse_configuration(fo)
 
 
 # ------------------------------------------------------------------------- cjdb

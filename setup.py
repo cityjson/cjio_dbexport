@@ -14,7 +14,7 @@ requirements = [
     'Click>=7.0',
     'psycopg2>=2.8',
     'PyYAML>=5.1.2',
-    'cjio == 0.6.0'
+    'cjio >= 0.6.0'
 ]
 
 setup_requirements = ['pytest-runner', ]

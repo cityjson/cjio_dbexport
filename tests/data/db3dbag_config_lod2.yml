@@ -1,0 +1,40 @@
+semantics_mapping:
+  0: "GroundSurface"
+  1: "RoofSurface"
+  2: "WallSurface"
+  3: "WallSurface"
+# 3 should be InnerWallSurface but that's not a valid semantic surface
+
+database:
+  dbname: db3dbag
+  host: localhost
+  password: db3dbag_1234
+  port: 5560
+  user: db3dbag_user
+
+tile_index:
+  field:
+    geometry: tile_polygon
+    pk: tile_id
+  schema: tiles
+  table: bag_tiles
+
+cityobject_type:
+  Building:
+    - field:
+        cityobject_id: gid
+        geometry:
+          lod12:
+            name: geom_lod12
+            type: Solid
+          lod13:
+            name: geom_lod13
+            type: Solid
+          lod22:
+            name: geom_lod22
+            type: Solid
+        pk: gid
+        semantics: _semantics_values
+        tile: _tile_id
+      schema: bag3d_v21032_8c048566
+      table: export_cityjson

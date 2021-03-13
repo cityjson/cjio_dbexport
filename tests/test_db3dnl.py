@@ -280,13 +280,16 @@ class TestIntegration:
             pytest.fail(f"Failed {len(failed)} tiles: {failed}")
 
 
-@pytest.mark.db3dnl
 class TestLoD2:
     def test_export_lod2(self, cfg_lod2, caplog):
         caplog.set_level(logging.DEBUG)
         dbexport = db3dnl.query(conn_cfg=cfg_lod2['database'],
                                   tile_index=cfg_lod2['tile_index'],
                                   cityobject_type=cfg_lod2['cityobject_type'],
-                                  tile_list=['ec4', ])
+                                  tile_list=['2', ])
         cm = db3dnl.convert(dbexport, cfg=cfg_lod2)
         log.info(cm.get_info(long=True))
+        cm_sub = cm.get_subset_random(5)
+        res = cm_sub.validate(longerr=True)
+        log.info(res)
+        assert res[0]

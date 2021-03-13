@@ -196,6 +196,7 @@ def dbexport_to_cityobjects(dbexport, cfg, rounding=4):
                 cfg_geom = _c["field"]["geometry"]
                 cfg_geom['lod'] = _c["field"].get('lod')
                 cfg_geom['semantics'] = _c["field"].get('semantics')
+                cfg_geom['tile_id'] = _c["field"].get('tile')
                 cfg_geom['semantics_mapping'] = cfg.get('semantics_mapping')
         # Loop through the whole tabledata and create the CityObjects
         cityobject_generator = table_to_cityobjects(
@@ -209,7 +210,7 @@ def dbexport_to_cityobjects(dbexport, cfg, rounding=4):
 def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding: int):
     """Converts a database record to a CityObject."""
     for record in tabledata:
-        coid = record["coid"]
+        coid = str(record["coid"])
         co = CityObject(id=coid)
         # Parse the geometry
         co.geometry = record_to_geometry(record, cfg_geom)
@@ -238,7 +239,9 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
     geometries = []
     lod_column = cfg_geom.get('lod')
     semantics_column = cfg_geom.get('semantics')
-    for lod_key in [k for k in cfg_geom if k != 'lod' and k != 'semantics' and k != 'semantics_mapping']:
+    # tile_id_column = cfg_geom.get("tile_id")
+    skip_keys = ('lod', 'semantics', 'semantics_mapping', 'tile_id')
+    for lod_key in [k for k in cfg_geom if k not in skip_keys]:
         if lod_column:
             lod = record[lod_column]
         else:
@@ -253,7 +256,7 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
             geom.boundaries = solid
         elif geomtype == "MultiSurface":
             geom.boundaries = record.get(settings.geom_prefix + lod_key)
-        if semantics_column:
+        if semantics_column and lod_float >= 2.0:
             geom.surfaces = record_to_surfaces(
                 geomtype=geomtype,
                 boundary=geom.boundaries,
