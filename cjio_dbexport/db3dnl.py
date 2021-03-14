@@ -63,14 +63,16 @@ def get_tile_list(cfg: Mapping, tiles: List) -> List:
 
 
 def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List,
-                              zip: bool = False) -> Mapping:
+                              zip: bool = False, prefix_file: str = None) -> Mapping:
     failed = []
     futures = []
+    if prefix_file is None:
+        prefix_file = ""
     if not path.exists():
         raise NotADirectoryError(str(path))
     with ProcessPoolExecutor(max_workers=jobs) as executor:
         for tile in tile_list:
-            filepath = (path / str(tile)).with_suffix('.json')
+            filepath = (path / f"{prefix_file}{tile}").with_suffix('.json')
             futures.append(executor.submit(export, tile, filepath,
                                            cfg, zip))
 
