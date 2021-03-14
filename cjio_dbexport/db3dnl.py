@@ -218,7 +218,8 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding: int):
         co.geometry = record_to_geometry(record, cfg_geom)
         # Parse attributes, except special fields that serve some purpose,
         # eg. primary key (pk) or cityobject ID (coid)
-        special_fields = ['pk', 'coid', cfg_geom['lod'], cfg_geom['semantics']]
+        special_fields = ('pk', 'coid', cfg_geom['lod'], cfg_geom['semantics'],
+                          cfg_geom['tile_id'])
         for key, attr in record.items():
             if key not in special_fields and "geom_" not in key:
                 if isinstance(attr, float):
@@ -241,7 +242,6 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
     geometries = []
     lod_column = cfg_geom.get('lod')
     semantics_column = cfg_geom.get('semantics')
-    # tile_id_column = cfg_geom.get("tile_id")
     skip_keys = ('lod', 'semantics', 'semantics_mapping', 'tile_id')
     for lod_key in [k for k in cfg_geom if k not in skip_keys]:
         if lod_column:
