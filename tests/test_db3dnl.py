@@ -7,6 +7,7 @@ import json
 from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import pytest
+from cjio import cityjson
 
 import cjio_dbexport.utils
 from cjio_dbexport import db3dnl, db, utils
@@ -173,8 +174,9 @@ class TestIntegration:
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
             pickle.dump(cm, fo)
 
-    def test_export_convert(self, data_dir, cfg_db3dnl, db3dnl_db,
-                            caplog):
+    def test_export_convert_save(self, data_dir, cfg_db3dnl, db3dnl_db, caplog,
+                                 data_output_dir):
+        """Does the .convert method work and can we save a CityJSON file?"""
         caplog.set_level(logging.DEBUG)
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
@@ -183,6 +185,8 @@ class TestIntegration:
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         cm.get_info()
+        outfile = data_output_dir / "gb2.city.json"
+        cityjson.save(citymodel=cm, path=outfile, indent=True)
 
     def test_export_lod_column(self, data_dir, db3dnl_db, cfg_db3dnl):
         c = [{

@@ -175,9 +175,7 @@ def convert(dbexport, cfg):
         f"Floating point attributes are rounded up to {rounding} decimal digits")
     cm = cityjson.CityJSON()
     cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg, rounding=rounding))
-    log.debug("Referencing geometry")
-    cityobjects, vertex_lookup = cm.reference_geometry()
-    log.debug("Adding to json")
+    log.debug("Referencing geometry and adding to json")
     cm.add_to_j()
     log.debug("Updating metadata")
     cm.update_metadata()
@@ -248,7 +246,7 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
             lod = utils.parse_lod_value(lod_key)
         lod_float = round(float(lod), 1)
         geomtype = cfg_geom[lod_key]["type"]
-        geom = Geometry(type=geomtype, lod=lod_float)
+        geom = Geometry(type=geomtype, lod=lod)
         if geomtype == "Solid":
             solid = [
                 record.get(settings.geom_prefix + lod_key),
