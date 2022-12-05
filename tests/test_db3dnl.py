@@ -167,8 +167,7 @@ class TestIntegration:
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
-        assert {"LandUse", "Road", "Building", "Bridge", "GenericCityObject",
-                "PlantCover", "WaterBody"} == set(cm.get_metadata()["thematicModels"])
+        assert len(cm.get_metadata()["geographicalExtent"]) > 0
 
         log.info(json.dumps(cm.get_metadata(), indent=2))
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
@@ -204,10 +203,7 @@ class TestIntegration:
                                     'cityobject_type'], tile_list=['gb2', ],
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
-        info = json.loads(cm.get_info(long=True))
-        assert 1.0 in info["level_of_detail"]
-        assert 1.2 in info["level_of_detail"]
-        assert 1.3 in info["level_of_detail"]
+        assert 'LoD = [1.0, 1.2, 1.3]' in cm.get_info(long=True)
 
     def test_index(self, data_dir, nl_poly):
         tilesize = (10000, 10000)
