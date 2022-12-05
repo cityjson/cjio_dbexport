@@ -30,6 +30,7 @@ import sys
 from pathlib import Path
 from io import StringIO
 from multiprocessing import freeze_support
+import json
 
 from psycopg2 import Error as pgError
 from psycopg2 import sql
@@ -38,6 +39,22 @@ from cjio import cityjson
 
 import cjio_dbexport.utils
 from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils, __version__
+
+
+def save(cm: cityjson.CityJSON, path: Path, indent=False):
+    """Write a CityJSON object to a JSON file.
+
+    We need this function because cjio.cityjson.save() is deprecated with v0.8.0.
+    """
+    try:
+        with path.open("w") as fout:
+            if indent:
+                json_str = json.dumps(cm.j, indent="\t")
+            else:
+                json_str = json.dumps(cm.j, separators=(',',':'))
+            fout.write(json_str)
+    except IOError as e:
+        raise IOError('Invalid output file: %s \n%s' % (path, e))
 
 
 @click.group()
@@ -91,7 +108,7 @@ def export_all_cmd(ctx, filename):
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cm.j["metadata"]["fileIdentifier"] = path.name
-        cityjson.save(cm, path=path, indent=False)
+        save(cm, path=path, indent=False)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
@@ -131,7 +148,7 @@ def export_tiles_cmd(ctx, tiles, merge, zip, jobs, dir):
                                     threads=1)
             cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
             cm.j["metadata"]["fileIdentifier"] = filepath.name
-            cityjson.save(cm, path=filepath, indent=False)
+            save(cm, path=filepath, indent=False)
             click.echo(f"Saved merged CityJSON tiles to {filepath}")
         except BaseException as e:
             raise click.ClickException(e)
@@ -171,7 +188,7 @@ def export_bbox_cmd(ctx, bbox, filename):
                                 bbox=bbox, threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cm.j["metadata"]["fileIdentifier"] = path.name
-        cityjson.save(cm, path=path, indent=False)
+        save(cm, path=path, indent=False)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
@@ -208,7 +225,7 @@ def export_extent_cmd(ctx, extent, filename):
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cm.j["metadata"]["fileIdentifier"] = path.name
-        cityjson.save(cm, path=path, indent=False)
+        save(cm, path=path, indent=False)
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)

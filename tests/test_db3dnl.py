@@ -7,10 +7,9 @@ import json
 from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import pytest
-from cjio import cityjson
 
 import cjio_dbexport.utils
-from cjio_dbexport import db3dnl, db, utils
+from cjio_dbexport import db3dnl, db, utils, cli
 
 log = logging.getLogger(__name__)
 
@@ -186,7 +185,8 @@ class TestIntegration:
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         cm.get_info()
         outfile = data_output_dir / "gb2.city.json"
-        cityjson.save(citymodel=cm, path=outfile, indent=True)
+        cli.save(cm, outfile, indent=True)
+
 
     def test_export_lod_column(self, data_dir, db3dnl_db, cfg_db3dnl):
         c = [{
