@@ -43,6 +43,9 @@ from cjio_dbexport import settings, db, utils
 
 log = logging.getLogger(__name__)
 
+# Zwaartepunt bij Putten, https://nl.wikipedia.org/wiki/Geografisch_middelpunt_van_Nederland
+TRANSLATE = [171800.0, 472700.0, 0.0]
+IMPORTANT_DIGITS = 3
 
 def get_tile_list(cfg: Mapping, tiles: List) -> List:
     conn = db.Db(**cfg['database'])
@@ -63,24 +66,75 @@ def get_tile_list(cfg: Mapping, tiles: List) -> List:
 
 
 def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List,
-                              zip: bool = False) -> Mapping:
+                              zip: bool = False, features: bool = False) -> Mapping:
     failed = []
     futures = []
     if not path.exists():
         raise NotADirectoryError(str(path))
+    if features:
+        # because we have 1 JSON object per file, such as each CityJSONFeature is in
+        # a separate file
+        suffix = ".city.json"
+        # The 'first' CityJSON file, containing the CRS and transform properties
+        cityjson_meta = {}
+        cityjson_meta["type"] = "CityJSON"
+        cityjson_meta["version"] = "1.1"
+        cityjson_meta["CityObjects"] = {}
+        cityjson_meta["vertices"] = []
+        # set scale
+        ss = '0.'
+        ss += '0'*(IMPORTANT_DIGITS - 1)
+        ss += '1'
+        ss = float(ss)
+        cityjson_meta["transform"] = {"scale": [ss, ss, ss], "translate": TRANSLATE}
+        cityjson_meta["metadata"] = {
+            "referenceSystem": "https://www.opengis.net/def/crs/EPSG/0/7415"
+        }
+        json.dumps(cityjson_meta, separators=(',', ':'))
+        # we write it to the root of the directory tree
+        filepath = (path / "metadata").with_suffix(suffix)
+        try:
+            json_str = json.dumps(cityjson_meta, separators=(',', ':'))
+            if zip:
+                filepath = utils.write_zip(data=json_str.encode("utf-8"),
+                                           filename=filepath.name,
+                                           outdir=filepath.parent)
+            else:
+                with open(filepath, "w") as fout:
+                    fout.write(json_str)
+            log.info(f"Written CityJSON metadata file to {filepath}")
+        except IOError as e:
+            log.error(f"Invalid output file: {filepath}\n{e}")
+            # exit early
+            return {"exported": len(tile_list), "nr_failed:": len(failed),
+                    "failed": "all"}
+        except BaseException as e:
+            log.exception(e)
+            # exit early
+            return {"exported": len(tile_list), "nr_failed:": len(failed),
+                    "failed": "all"}
+    else:
+        suffix = ".city.json"
     with ProcessPoolExecutor(max_workers=jobs) as executor:
         for tile in tile_list:
-            filepath = (path / str(tile)).with_suffix('.json')
+            filepath = (path / str(tile)).with_suffix(suffix)
             futures.append(executor.submit(export, tile, filepath,
-                                           cfg, zip))
+                                           cfg, zip, features))
 
         for i, future in enumerate(as_completed(futures)):
             success, filepath = future.result()
             if success:
-                log.info(
-                    f"[{i + 1}/{len(tile_list)}] Saved {filepath.name}")
+                if features:
+                    log.info(
+                        f"[{i + 1}/{len(tile_list)}] Saved all features from tile {filepath}")
+                else:
+                    log.info(
+                        f"[{i + 1}/{len(tile_list)}] Saved {filepath.name}")
             else:
-                failed.append(filepath.stem)
+                if features:
+                    failed.extend(filepath)
+                else:
+                    failed.append(filepath.stem)
         log.info(
             f"Done. Exported {len(tile_list) - len(failed)} tiles. "
             f"Failed {len(failed)} tiles: {failed}")
@@ -89,8 +143,12 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
                 "failed": failed}
 
 
-def export(tile, filepath, cfg, zip: bool = False):
-    """Export a tile from PostgreSQL, convert to CityJSON and write to file."""
+def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
+    """Export a tile from PostgreSQL, convert to CityJSON and write to file.
+
+    filepath - Sth like '/path/to/myfile.city.json'. If 'features=True', then this
+        filepath is further processed into '/path/to/myfile/id.city.json'
+    """
     try:
         dbexport = query(
             conn_cfg=cfg["database"],
@@ -103,33 +161,64 @@ def export(tile, filepath, cfg, zip: bool = False):
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
     try:
-        cm = to_citymodel(dbexport, cfg=cfg, compress=True, important_digits=3)
+        cm = to_citymodel(dbexport, cfg=cfg, important_digits=IMPORTANT_DIGITS)
     finally:
         del dbexport
     if cm is not None:
-        cm.j["metadata"]["fileIdentifier"] = filepath.name
-        try:
-            json_str = json.dumps(cm.j, separators=(',', ':'))
-            if zip:
-                filepath = utils.write_zip(data=json_str.encode("utf-8"),
-                                           filename=filepath.name,
-                                           outdir=filepath.parent)
+        if features:
+            fail = []
+            # e.g: 'gb2' in /home/cjio_dbexport/gb2.city.json
+            old_filename = filepath.name.replace("".join(filepath.suffixes), "")
+            # e.g: '/home/cjio_dbexport/gb2' in /home/cjio_dbexport/gb2.city.json
+            filedir = Path(filepath.parent) / old_filename
+            filedir.mkdir(exist_ok=True)
+            for feature in cm.generate_features():
+                feature_id = feature.j['id']
+                new_filename = f"{feature_id}.city.json"
+                filepath = filedir / new_filename
+                try:
+                    json_str = json.dumps(feature.j, separators=(',', ':'))
+                    if zip:
+                        filepath = utils.write_zip(data=json_str.encode("utf-8"),
+                                                   filename=new_filename,
+                                                   outdir=filedir)
+                    else:
+                        with open(filepath, "w") as fout:
+                            fout.write(json_str)
+                except IOError as e:
+                    log.error(f"Invalid output file: {filepath}\n{e}")
+                    fail.append(feature_id)
+                except BaseException as e:
+                    log.exception(e)
+                    fail.append(feature_id)
+            if len(fail) > 0:
+                return False, fail
             else:
-                with open(filepath, "w") as fout:
-                    fout.write(json_str)
-            return True, filepath
-        except IOError as e:
-            log.error(f"Invalid output file: {filepath}\n{e}")
-            return False, filepath
-        except BaseException as e:
-            log.exception(e)
-            return False, filepath
-        finally:
-            del cm
+                return True, filedir
+        else:
+            cm.j["metadata"]["fileIdentifier"] = filepath.name
             try:
-                del json_str
-            except NameError:
-                pass
+                json_str = json.dumps(cm.j, separators=(',', ':'))
+                if zip:
+                    filepath = utils.write_zip(data=json_str.encode("utf-8"),
+                                               filename=filepath.name,
+                                               outdir=filepath.parent)
+                else:
+                    with open(filepath, "w") as fout:
+                        fout.write(json_str)
+                return True, filepath
+            except IOError as e:
+                log.error(f"Invalid output file: {filepath}\n{e}")
+                return False, filepath
+            except BaseException as e:
+                log.exception(e)
+                return False, filepath
+            finally:
+                del cm
+                try:
+                    del json_str
+                except NameError:
+                    pass
     else:
         log.error(
             f"Failed to create CityJSON from {filepath.stem},"
@@ -138,29 +227,17 @@ def export(tile, filepath, cfg, zip: bool = False):
         return False, filepath
 
 
-def to_citymodel(dbexport, cfg, compress: bool = True, important_digits: int = 3):
+def to_citymodel(dbexport, cfg, important_digits: int = 3, translate=None):
     try:
         cm = convert(dbexport, cfg=cfg)
     except BaseException as e:
         log.error(f"Failed to convert database export to CityJSON\n{e}")
         return None
-    if cm and compress:
+    if cm:
         try:
-            cm.compress(important_digits=important_digits)
+            cm.compress(important_digits=important_digits, translate=translate)
         except BaseException as e:
             log.error(f"Failed to compress cityjson\n{e}")
-            return None
-        return cm
-    elif cm and not compress:
-        try:
-            cm.remove_duplicate_vertices()
-        except BaseException as e:
-            log.error(f"Failed to remove duplicate vertices\n{e}")
-            return None
-        try:
-            cm.remove_orphan_vertices()
-        except BaseException as e:
-            log.error(f"Failed to remove orphan vertices\n{e}")
             return None
         return cm
 
@@ -177,12 +254,6 @@ def convert(dbexport, cfg):
     cm.cityobjects = dict(dbexport_to_cityobjects(dbexport, cfg, rounding=rounding))
     log.debug("Referencing geometry and adding to json")
     cm.add_to_j()
-    log.debug("Removing duplicate vertices")
-    cm.remove_duplicate_vertices()
-    log.debug("Removing orphan vertices")
-    cm.remove_orphan_vertices()
-    log.debug("Compressing city model")
-    cm.compress()
     log.debug("Updating metadata")
     cm.update_metadata()
     log.debug("Setting EPSG")

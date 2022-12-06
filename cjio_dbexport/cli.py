@@ -122,16 +122,23 @@ def export_all_cmd(ctx, filename):
               help='Zip the output file. On Linux and MacOS its Gzip.')
 @click.option('--jobs', '-j', type=int, default=1,
               help='The number of parallel jobs to run')
+@click.option("--features", is_flag=True, help="Export CityJSONFeatures.")
 @click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, zip, jobs, dir):
+def export_tiles_cmd(ctx, tiles, merge, zip, jobs, features, dir):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
     the object from all tiles from the tile_index.
 
     DIR is the path to the output directory. It will be created if doesn't exist.
+
+    When exporting to CityJSONFeatures, a directory tree is created from the tile IDs,
+    and each tile directory contains the features in that tile. Each feature is written
+    to a separate file.
+    At the root of the directory tree the 'metadata.city.json' file is written, which
+    contains the CRS and transformation properties for all the features.
     """
     path = Path(dir).resolve()
     path.mkdir(parents=True, exist_ok=True)
@@ -157,7 +164,7 @@ def export_tiles_cmd(ctx, tiles, merge, zip, jobs, dir):
         click.echo(f"Exporting {len(tile_list)} tiles...")
         click.echo(f"Output directory: {path}")
         db3dnl.export_tiles_multiprocess(ctx.obj['cfg'], jobs, path, tile_list,
-                                         zip=zip)
+                                         zip=zip, features=features)
         return 0
 
 
