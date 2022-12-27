@@ -174,7 +174,7 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
             filedir.mkdir(exist_ok=True)
             for feature in cm.generate_features():
                 feature_id = feature.j['id']
-                new_filename = f"{feature_id}.city.json"
+                new_filename = f"{feature_id}.city.jsonl"
                 filepath = filedir / new_filename
                 try:
                     json_str = json.dumps(feature.j, separators=(',', ':'))

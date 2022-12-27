@@ -28,7 +28,6 @@ class TestParsing:
             msurface.append(list(surface))
         print(msurface)
 
-
     def test_build_query_all(self, db3dnl_db, cfg_db3dnl, caplog):
         features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
         tile_index = db.Schema(cfg_db3dnl['tile_index'])
@@ -112,7 +111,7 @@ class TestIntegration:
             pickle.dump(dbexport, fo)
 
     def test_export_tile_list_without_intersect(self, data_dir, cfg_db3dnl, db3dnl_db,
-                              db3dnl_4tiles_pickle):
+                                                db3dnl_4tiles_pickle):
         """Export a list of tiles when the object table has a tile ID column so they
         can be filtered directly on the tile id
 
@@ -135,7 +134,6 @@ class TestIntegration:
                                   tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
         dbexport = list(export_gen)
 
-
     def test_export_tile_list_one(self, data_dir, cfg_db3dnl, db3dnl_db,
                                   db3dnl_4tiles_pickle):
         export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
@@ -145,7 +143,7 @@ class TestIntegration:
         dbexport = list(export_gen)
 
     def test_query_no_export(self, data_dir, cfg_db3dnl, db3dnl_db,
-                                  db3dnl_4tiles_pickle):
+                             db3dnl_4tiles_pickle):
         """Test that the query works when the 'exclude' key is not present"""
         for name, cotype in cfg_db3dnl['cityobject_type'].items():
             for tablename in cotype:
@@ -186,7 +184,6 @@ class TestIntegration:
         cm.get_info()
         outfile = data_output_dir / "gb2.city.json"
         cli.save(cm, outfile, indent=True)
-
 
     def test_export_lod_column(self, data_dir, db3dnl_db, cfg_db3dnl):
         c = [{
@@ -231,7 +228,7 @@ class TestIntegration:
     #     tiles = ('1', '2')
 
     def test_export_features(self, data_dir, cfg_db3dnl, db3dnl_db, caplog,
-                                 data_output_dir):
+                             data_output_dir):
         """Does the .convert method work and can we save a CityJSON file?"""
         caplog.set_level(logging.DEBUG)
         outfile = data_output_dir / "gb2.city.json"
@@ -240,7 +237,7 @@ class TestIntegration:
 
     # @pytest.mark.skip
     def test_export_tiles_multiprocess_features(self, db3dnl_db, cfg_db3dnl,
-                                    data_output_dir):
+                                                data_output_dir):
         """Test when the tile_index ID is an integer in the database, not a
         string AND the tiles are a list, not a tuple."""
         tile_index = db.Schema(cfg_db3dnl['tile_index'])
@@ -256,9 +253,9 @@ class TestLoD2:
     def test_export_lod2(self, cfg_lod2, caplog):
         caplog.set_level(logging.DEBUG)
         dbexport = db3dnl.query(conn_cfg=cfg_lod2['database'],
-                                  tile_index=cfg_lod2['tile_index'],
-                                  cityobject_type=cfg_lod2['cityobject_type'],
-                                  tile_list=['2', ])
+                                tile_index=cfg_lod2['tile_index'],
+                                cityobject_type=cfg_lod2['cityobject_type'],
+                                tile_list=['2', ])
         cm = db3dnl.convert(dbexport, cfg=cfg_lod2)
         log.info(cm.get_info(long=True))
         cm_sub = cm.get_subset_random(5)
