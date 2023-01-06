@@ -114,3 +114,4 @@ ENV/
 # Other
 .directory
 /docker/db3dnl_sample.sql.gz
+notes.md

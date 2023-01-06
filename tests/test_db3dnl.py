@@ -231,7 +231,7 @@ class TestIntegration:
                              data_output_dir):
         """Does the .convert method work and can we save a CityJSON file?"""
         caplog.set_level(logging.DEBUG)
-        outfile = data_output_dir / "gb2.city.json"
+        outfile = data_output_dir / "gb2_features.city.jsonl"
         db3dnl.export(tile="gb2", filepath=outfile, cfg=cfg_db3dnl, zip=False,
                       features=True)
 

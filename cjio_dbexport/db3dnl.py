@@ -161,7 +161,9 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
     try:
-        cm = to_citymodel(dbexport, cfg=cfg, important_digits=IMPORTANT_DIGITS)
+        translate = TRANSLATE if features else None
+        cm = to_citymodel(dbexport, cfg=cfg, important_digits=IMPORTANT_DIGITS,
+                          translate=translate)
     finally:
         del dbexport
     if cm is not None:
