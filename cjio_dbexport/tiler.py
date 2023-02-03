@@ -85,7 +85,7 @@ def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
     """).format(**query_params)
     if drop:
         drop_query = sql.SQL(
-            "DROP TABLE {} CASCADE;"
+            "DROP TABLE IF EXISTS {} CASCADE;"
         ).format(tile_index.schema + tile_index.table)
     try:
         log.debug(conn.print_query(query_schema))
@@ -162,7 +162,7 @@ def gist_on_grid(conn: db.Db, tile_index: db.Schema) -> bool:
     query = sql.SQL("""
     CREATE INDEX IF NOT EXISTS geom_idx ON
     {table}
-        USING spgist ({geometry});
+        USING gist ({geometry});
     """).format(**query_params)
     try:
         log.debug(conn.print_query(query))
