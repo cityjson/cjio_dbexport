@@ -2,6 +2,25 @@
 Changelog
 ==========
 
+Unreleased
+----------
+
+Changes
+*******
+* Update to CityJSON 1.1 (replaces the CityJSON 1.0 export)
+* Upgrade to cjio 0.8.0
+* Update Kadaster test data
+* Test against Postgres 15 + PostGIS 3.3 (instead of 13+3.0)
+
+Adds
+****
+* Export CityJSONFeatures
+* Optional file name prefix
+
+Removes
+*******
+* The 'tile_id' attribute from the output
+
 0.8.4 (2021-01-25)
 ------------------
 
