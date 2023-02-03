@@ -52,6 +52,8 @@ coverage.xml
 .pytest_cache/
 # Test datasets
 tests/data/*.json
+tests/data/*.jsonl
+tests/data/output
 
 # Translations
 *.mo
@@ -91,6 +93,7 @@ celerybeat-schedule
 
 # virtualenv
 .venv
+.run
 venv/
 ENV/
 
@@ -114,4 +117,5 @@ ENV/
 # Other
 .directory
 /docker/db3dnl_sample.sql.gz
+/docker/Kadaster3DBVDB
 notes.md

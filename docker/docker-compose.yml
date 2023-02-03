@@ -8,7 +8,8 @@ services:
       - postgis.env
     volumes:
       - postgis_10_25-data:/var/lib/postgresql/data/
-      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
+      - "./_init_db3dnl.sql:/docker-entrypoint-initdb.d/_init_db3dnl.sql:ro"
+      - "./Kadaster3DBVDB/:/docker-entrypoint-initdb.d/"
     networks:
       - cjdb-network
   postgis_13_30:
@@ -19,7 +20,9 @@ services:
       - postgis.env
     volumes:
       - postgis_13_30-data:/var/lib/postgresql/data/
-      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
+      - "./_init_db3dnl.sql:/docker-entrypoint-initdb.d/_init_db3dnl.sql:ro"
+      - "./Kadaster3DBVDB/:/docker-entrypoint-initdb.d/"
+#      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
     networks:
       - cjdb-network
 volumes:

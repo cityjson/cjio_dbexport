@@ -1,3 +1,3 @@
-Download the database backup 'db3dnl_sample.sql.gz' that is required by the Docker containers.
+Download the database backup 'Kadaster3DBVDB.zip' that is required by the Docker containers.
 
-Download from: https://surfdrive.surf.nl/files/index.php/s/sE58EbUvucvnaSw
+Download from: https://data.3dgi.xyz/3dtiles-test-data/Kadaster3DBVDB.zip
