@@ -337,13 +337,11 @@ def index_cmd(ctx, extent, tilesize, drop):
         try:
             with conn.conn:
                 with conn.conn.cursor() as cur:
-                    log.debug(f"COPY {table} ({tile_index.field.pk.string},"
-                              f" {tile_index.field.geometry.string}) FROM "
-                              f"<value> ")
-                    cur.copy_from(values, table,
-                                  columns=(tile_index.field.pk.string,
-                                           tile_index.field.geometry.string),
-                                  sep='\t')
+                    query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}) FROM STDIN WITH DELIMITER '\t'"
+                    log.debug(query)
+                    cur.copy_expert(
+                        sql=query,
+                        file=values)
             click.echo(f"Inserted {len(grid)} tiles into {table}")
         except pgError as e:
             raise click.ClickException(e)
