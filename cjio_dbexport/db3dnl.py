@@ -66,9 +66,12 @@ def get_tile_list(cfg: Mapping, tiles: List) -> List:
 
 
 def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List,
-                              zip: bool = False, features: bool = False) -> Mapping:
+                              zip: bool = False, prefix_file: str = None,
+                              features: bool = False) -> Mapping:
     failed = []
     futures = []
+    if prefix_file is None:
+        prefix_file = ""
     if not path.exists():
         raise NotADirectoryError(str(path))
     if features:
@@ -117,7 +120,7 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
         suffix = ".city.json"
     with ProcessPoolExecutor(max_workers=jobs) as executor:
         for tile in tile_list:
-            filepath = (path / str(tile)).with_suffix(suffix)
+            filepath = (path / f"{prefix_file}{tile}").with_suffix((suffix))
             futures.append(executor.submit(export, tile, filepath,
                                            cfg, zip, features))
 
@@ -293,7 +296,8 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding: int):
         co.geometry = record_to_geometry(record, cfg_geom)
         # Parse attributes, except special fields that serve some purpose,
         # eg. primary key (pk) or cityobject ID (coid)
-        special_fields = ['pk', 'coid', cfg_geom['lod'], cfg_geom['semantics']]
+        special_fields = ('pk', 'coid', cfg_geom['lod'], cfg_geom['semantics'],
+                          cfg_geom['tile_id'])
         for key, attr in record.items():
             if key not in special_fields and "geom_" not in key:
                 if isinstance(attr, float):
@@ -316,7 +320,6 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
     geometries = []
     lod_column = cfg_geom.get('lod')
     semantics_column = cfg_geom.get('semantics')
-    # tile_id_column = cfg_geom.get("tile_id")
     skip_keys = ('lod', 'semantics', 'semantics_mapping', 'tile_id')
     for lod_key in [k for k in cfg_geom if k not in skip_keys]:
         if lod_column:
