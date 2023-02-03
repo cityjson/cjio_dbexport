@@ -114,6 +114,7 @@ def db3dnl_4tiles_pickle(data_dir):
 def db3dnl_db(cfg_db3dnl):
     # TODO: needs database setup
     conn = db.Db(**cfg_db3dnl['database'])
+    assert conn.create_functions()
     yield conn
     conn.close()
 
