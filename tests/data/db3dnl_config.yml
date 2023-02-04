@@ -24,12 +24,9 @@ cityobject_type:
       field:
         pk: ogc_fid
         geometry:
-          lod12:
+          lod1:
             name: wkb_geometry
             type: Solid
-          lod13:
-            name: wkb_geometry_lod13
-            type: MultiSurface
         cityobject_id: identificatie
         exclude: ["xml", "_clipped"]
   Road:
@@ -92,7 +89,7 @@ cityobject_type:
         geometry: wkb_geometry
         cityobject_id: identificatie
         exclude: ["xml"]
-  GenericCityObject:
+  OtherConstruction:
     - schema: public
       table: kunstwerkdeel_vlak
       field:

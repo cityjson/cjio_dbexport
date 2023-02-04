@@ -4,7 +4,6 @@
 import logging
 import pickle
 import json
-from concurrent.futures import as_completed, ThreadPoolExecutor
 
 import pytest
 
@@ -42,8 +41,7 @@ class TestParsing:
         tile_index = db.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
                                    tile_index=tile_index,
-                                   bbox=[192837.734, 465644.179, 193701.818,
-                                         466898.821])
+                                   bbox=[82530.68, 446820.40, 84257.09, 448794.26])
         query_str = db3dnl_db.print_query(query)
         assert '"xml"' not in query_str
         assert 'Exporting with BBOX' in caplog.text
@@ -64,7 +62,7 @@ class TestParsing:
         tile_index = db.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
                                    tile_index=tile_index,
-                                   tile_list=('ic2',))
+                                   tile_list=('ci1',))
         query_str = db3dnl_db.print_query(query)
         assert '"xml"' not in query_str and '"identificatie"' in query_str
         assert 'Exporting with a list of tiles' in caplog.text
@@ -88,8 +86,7 @@ class TestIntegration:
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
                                       'cityobject_type'],
-                                  bbox=[192837.734, 465644.179, 193701.818,
-                                        466898.821])
+                                  bbox=[82530.68, 446820.40, 84257.09, 448794.26])
         dbexport = list(export_gen)
 
     def test_export_extent(self, data_dir, cfg_db3dnl, db3dnl_db, db3dnl_poly):
@@ -105,7 +102,7 @@ class TestIntegration:
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
                                       'cityobject_type'],
-                                  tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+                                  tile_list=['ci1', 'ci2',])
         dbexport = list(export_gen)
         with open(db3dnl_4tiles_pickle, 'wb') as fo:
             pickle.dump(dbexport, fo)
@@ -131,7 +128,7 @@ class TestIntegration:
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
                                       'cityobject_type'],
-                                  tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
+                                  tile_list=['ci1', 'ci2',])
         dbexport = list(export_gen)
 
     def test_export_tile_list_one(self, data_dir, cfg_db3dnl, db3dnl_db,
@@ -139,7 +136,7 @@ class TestIntegration:
         export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
-                                      'cityobject_type'], tile_list=['gb2', ])
+                                      'cityobject_type'], tile_list=['ci1', ])
         dbexport = list(export_gen)
 
     def test_query_no_export(self, data_dir, cfg_db3dnl, db3dnl_db,
@@ -151,17 +148,17 @@ class TestIntegration:
         export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
-                                      'cityobject_type'], tile_list=['gb2', ])
+                                      'cityobject_type'], tile_list=['ci1', ])
         dbexport = list(export_gen)
 
     def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl, caplog):
         caplog.set_level(logging.DEBUG)
-        # dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
-        #                           tile_index=cfg_db3dnl['tile_index'],
-        #                           cityobject_type=cfg_db3dnl[
-        #                               'cityobject_type'], tile_list=['gb2', 'ic1', 'ic2', 'ec4'])
-        # with open(data_dir / 'db3dnl_4tiles.pickle', 'wb') as fo:
-        #     pickle.dump(list(dbexport), fo)
+        dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
+                                  tile_index=cfg_db3dnl['tile_index'],
+                                  cityobject_type=cfg_db3dnl[
+                                      'cityobject_type'], tile_list=['ci1', 'ci2',])
+        with open(data_dir / 'db3dnl_4tiles.pickle', 'wb') as fo:
+            pickle.dump(list(dbexport), fo)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
             dbexport = pickle.load(fo)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
@@ -178,7 +175,7 @@ class TestIntegration:
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
                                 cityobject_type=cfg_db3dnl[
-                                    'cityobject_type'], tile_list=['gb2', ],
+                                    'cityobject_type'], tile_list=['ci1', ],
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         cm.get_info()
@@ -201,7 +198,7 @@ class TestIntegration:
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
                                 cityobject_type=cfg_db3dnl[
-                                    'cityobject_type'], tile_list=['gb2', ],
+                                    'cityobject_type'], tile_list=['ci1', ],
                                 threads=1)
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         assert 'LoD = [1.0, 1.2, 1.3]' in cm.get_info(long=True)
@@ -231,11 +228,11 @@ class TestIntegration:
                              data_output_dir):
         """Does the .convert method work and can we save a CityJSON file?"""
         caplog.set_level(logging.DEBUG)
-        outfile = data_output_dir / "gb2_features.city.jsonl"
-        db3dnl.export(tile="gb2", filepath=outfile, cfg=cfg_db3dnl, zip=False,
+        outfile = data_output_dir / "ci1_features.city.jsonl"
+        db3dnl.export(tile="ci1", filepath=outfile, cfg=cfg_db3dnl, zip=False,
                       features=True)
 
-    # @pytest.mark.skip
+    @pytest.mark.skip
     def test_export_tiles_multiprocess_features(self, db3dnl_db, cfg_db3dnl,
                                                 data_output_dir):
         """Test when the tile_index ID is an integer in the database, not a

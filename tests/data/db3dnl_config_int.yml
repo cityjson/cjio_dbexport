@@ -84,7 +84,7 @@ cityobject_type:
         geometry: wkb_geometry
         cityobject_id: identificatie
         exclude: ["xml"]
-  GenericCityObject:
+  OtherConstruction:
     - schema: public
       table: kunstwerkdeel_vlak
       field:

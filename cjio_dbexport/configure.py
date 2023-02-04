@@ -25,6 +25,7 @@ SOFTWARE.
 """
 import logging
 from typing import TextIO, Mapping
+from copy import deepcopy
 
 import yaml
 
@@ -80,22 +81,25 @@ def verify_cotypes(cfg: Mapping) -> bool:
     """
     # TODO: is it possible to extract the cityobject types from the cityjson schema?
     first_level = [
+        'bridge',
         'building',
-        'road', 'railway', 'transportsquare',
-        'tinrelief',
-        'waterbody',
+        'cityfurniture',
         'landuse',
+        'otherconstruction',
         'plantcover',
         'solitaryvegetationobject',
-        'cityfurniture',
-        'genericcityobject',
-        'bridge',
-        'tunnel'
+        'tinrelief',
+        'transportsquare',
+        'railway',
+        'road',
+        'tunnel',
+        'waterbody',
+        'waterway',
     ]
     second_level = [
-        'buildingpart', 'buildinginstallation',
-        'bridgepart', 'bridgeinstallation', 'bridgeconstructionelement',
-        'tunnelpart', 'tunnelinstallation'
+        'buildingpart', 'buildinginstallation', 'buildingconstructiveelement', 'buildingroom', 'buildingfurniture', 'buildingstorey', 'buildingunit',
+        'bridgepart', 'bridgeinstallation', 'bridgeconstructiveelement', 'bridgeroom', 'bridgefurniture',
+        'tunnelpart', 'tunnelinstallation', 'tunnelconstructiveelement', 'tunnelfurniture', 'tunnelhollowspace',
     ]
     if 'cityobject_type' not in cfg:
         raise ValueError(
@@ -106,9 +110,12 @@ def verify_cotypes(cfg: Mapping) -> bool:
             if _cotype == 'cityobjectgroup':
                 log.error("CityObjectGroup type is not supported")
             elif _cotype in second_level:
-                f_lvl = _cotype.replace('installation', '').replace('part',
-                                                                    '').replace(
-                    'constructionelement', '')
+                second_level_suffixes = ['part', 'installation', 'constructiveelement',
+                                         'furniture', 'storey', 'room', 'unit',
+                                         'hollowspace']
+                f_lvl = deepcopy(_cotype)
+                for suffix in second_level_suffixes:
+                    f_lvl = f_lvl.replace(suffix, '')
                 if f_lvl not in cfg['cityobject_type']:
                     raise ValueError(f"Cannot declare 2nd-level CityObject "
                                      f"{_cotype} by itself. It must have a "
