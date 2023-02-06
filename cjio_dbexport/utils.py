@@ -306,13 +306,39 @@ def read_geojson_polygon(fo: TextIO) -> Iterable:
     return polygon
 
 
-def to_ewkt(polygon, srid) -> str:
-    """Creates a WKT representation of a Simple Feature polygon.
-    :returns: The WKT string of ``polygon``
+def polygon_to_ewkt(polygon, srid) -> str:
+    """Creates a EWKT representation of a Simple Feature polygon.
+    :returns: The EWKT string of ``polygon``
     """
     ring = [" ".join(map(str, i)) for i in polygon[0]]
     ewkt = f'SRID={srid};POLYGON(({",".join(ring)}))'
     return ewkt
+
+
+def polyline_to_ewkt(polyline, srid) -> str:
+    """Creates a EWKT representation of a Simple Feature polyline.
+    :returns: The EWKT string of ``polyline``
+    """
+    linestring = [" ".join(map(str, i)) for i in polyline]
+    ewkt = f'SRID={srid};LINESTRING({",".join(linestring)})'
+    return ewkt
+
+
+def rectangle_sw_boundary(rectangle):
+    """Extracts the South-West edges of a rectangle polygon into a polyline."""
+    # rectangle[0] is the outer ring of the polygon
+    bbox = [*rectangle[0][0], *rectangle[0][1]]
+    for v in rectangle[0]:
+        if v[0] < bbox[0]:
+            bbox[0] = v[0]
+        elif v[0] > bbox[2]:
+            bbox[2] = v[0]
+        if v[1] < bbox[1]:
+            bbox[1] = v[1]
+        elif v[1] > bbox[3]:
+            bbox[3] = v[1]
+    # polyline in CCW of the polygon boundary
+    return [(bbox[2], bbox[1]), (bbox[0], bbox[1]), (bbox[0], bbox[3])]
 
 def lod_to_string(lod: Union[int, float]) -> Union[str, None]:
     """Convert and LoD integer or float to string.

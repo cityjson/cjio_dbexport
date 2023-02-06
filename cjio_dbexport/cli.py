@@ -304,11 +304,9 @@ def index_cmd(ctx, extent, tilesize, drop):
             raise click.ClickException(f"Could not create TEMPORARY TABLE for "
                                        f"the extent. Check the logs for "
                                        f"details.")
-        extent_ewkt = utils.to_ewkt(polygon=polygon,
-                                    srid=ctx.obj['cfg']['tile_index']['srid'])
-        good = tiler.insert_ewkt(conn=conn,
-                                 temp_table=extent_tbl,
-                                 ewkt=extent_ewkt)
+        extent_ewkt = utils.polygon_to_ewkt(polygon=polygon,
+                                            srid=ctx.obj['cfg']['tile_index']['srid'])
+        good = tiler.insert_ewkt(conn=conn, temp_table=extent_tbl, ewkt=extent_ewkt)
         if not good:
             raise click.ClickException(f"Could not insert the extent into the "
                                        f" 'extent' temporary table. Check the "
@@ -328,16 +326,19 @@ def index_cmd(ctx, extent, tilesize, drop):
         # Upload the tile_index to the database
         values = StringIO()
         for idx, code in quadtree_idx.items():
-            ewkt = utils.to_ewkt(polygon=grid[code],
-                                 srid=ctx.obj['cfg']['tile_index']['srid'])
-            values.write(f'{idx}\t{ewkt}\n')
+            sw_boundary = utils.rectangle_sw_boundary(grid[code])
+            ewkt = utils.polygon_to_ewkt(polygon=grid[code],
+                                         srid=ctx.obj['cfg']['tile_index']['srid'])
+            ewkt_sw = utils.polyline_to_ewkt(sw_boundary,
+                                             srid=ctx.obj['cfg']['tile_index']['srid'])
+            values.write(f'{idx}\t{ewkt}\t{ewkt_sw}\n')
         values.seek(0)
         log.debug(f"First <value>={values.readline()}")
         values.seek(0)
         try:
             with conn.conn:
                 with conn.conn.cursor() as cur:
-                    query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}) FROM STDIN WITH DELIMITER '\t'"
+                    query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}, {tile_index.field.geometry_sw_boundary.string}) FROM STDIN WITH DELIMITER '\t'"
                     log.debug(query)
                     cur.copy_expert(
                         sql=query,

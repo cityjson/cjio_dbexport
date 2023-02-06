@@ -75,12 +75,14 @@ def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
         'table': tile_index.schema + tile_index.table,
         'srid': sql.Literal(srid),
         'gid': tile_index.field.pk.sqlid,
-        'geom': tile_index.field.geometry.sqlid
+        'geom': tile_index.field.geometry.sqlid,
+        'geom_sw': tile_index.field.geometry_sw_boundary.sqlid
     }
     query = sql.SQL("""
         CREATE TABLE {table}(
             {gid} text PRIMARY KEY,  
-            {geom} geometry(POLYGON, {srid})
+            {geom} geometry(POLYGON, {srid}),
+            {geom_sw} geometry(LINESTRING, {srid})
         );
     """).format(**query_params)
     if drop:
@@ -163,6 +165,21 @@ def gist_on_grid(conn: db.Db, tile_index: db.Schema) -> bool:
     CREATE INDEX IF NOT EXISTS geom_idx ON
     {table}
         USING gist ({geometry});
+    """).format(**query_params)
+    try:
+        log.debug(conn.print_query(query))
+        conn.send_query(query)
+    except pgError as e:
+        log.error(f"{e.pgcode}\t{e.pgerror}")
+        return False
+    query_params = {
+        'table': tile_index.schema + tile_index.table,
+        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary.sqlid
+    }
+    query = sql.SQL("""
+    CREATE INDEX IF NOT EXISTS geom_sw_boundary_idx ON
+    {table}
+        USING gist ({geometry_sw_boundary});
     """).format(**query_params)
     try:
         log.debug(conn.print_query(query))

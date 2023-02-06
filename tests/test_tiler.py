@@ -20,5 +20,4 @@ class TestTiler:
     def test_insert_ewkt(self, cjdb_db):
         ewkt = 'SRID=7415;POLYGON((0.0 0.0, 1.0 1.0, 1.0 0.0, 0.0 0.0))'
         temp_table = sql.Identifier('test_data', 'extent')
-        assert tiler.insert_ewkt(conn=cjdb_db, temp_table=temp_table,
-                                 ewkt=ewkt)
+        assert tiler.insert_ewkt(conn=cjdb_db, temp_table=temp_table, ewkt=ewkt)

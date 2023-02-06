@@ -70,6 +70,12 @@ def parse_configuration(config: TextIO) -> Mapping:
     except ValueError as e:
         log.exception(e)
         raise
+    try:
+        cfg_updated = add_tile_sw_boundary(cfg_stream)
+        cfg_stream = cfg_updated
+    except ValueError as e:
+        log.exception(e)
+        raise
     return cfg_stream
 
 
@@ -205,4 +211,12 @@ def add_lod_keys(cfg: Mapping) -> Mapping:
             else:
                 raise ValueError(f"The 'geometry' field mapping must be a string"
                                  f" or a mapping in {relation}")
+    return cfg_updated
+
+
+def add_tile_sw_boundary(cfg: Mapping) -> Mapping:
+    cfg_updated = cfg
+    if 'tile_index' in cfg:
+        if 'field' in cfg['tile_index']:
+            cfg_updated['tile_index']['field']['geometry_sw_boundary'] = cfg['tile_index']['field']['geometry'] + "_sw_boundary"
     return cfg_updated

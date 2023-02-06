@@ -516,7 +516,7 @@ def build_query(
             )
     elif extent:
         log.info(f"Exporting with polygon extent")
-        ewkt = utils.to_ewkt(polygon=extent, srid=epsg)
+        ewkt = utils.polygon_to_ewkt(polygon=extent, srid=epsg)
         polygons_sub, attr_where, extent_sub = query_extent(
             features=features, ewkt=ewkt
         )

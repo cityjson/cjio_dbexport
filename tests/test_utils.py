@@ -20,12 +20,12 @@ class TestGeom:
     def test_to_ewkt(self):
         polygon = [[(0.0, 0.0), (1.0, 1.0), (1.0, 0.0), (0.0, 0.0)]]
         expect = 'SRID=7415;POLYGON((0.0 0.0,1.0 1.0,1.0 0.0,0.0 0.0))'
-        ewkt = utils.to_ewkt(polygon, srid=7415)
+        ewkt = utils.polygon_to_ewkt(polygon, srid=7415)
         assert ewkt == expect
 
     def test_to_ewkt_nl(self, nl_poly):
         polygon = utils.read_geojson_polygon(nl_poly)
-        ewkt = utils.to_ewkt(polygon, srid=7415)
+        ewkt = utils.polygon_to_ewkt(polygon, srid=7415)
         log.debug(ewkt)
 
     def test_to_ewkt_grid(self, nl_poly):
@@ -33,7 +33,7 @@ class TestGeom:
         grid = utils.create_rectangle_grid_morton(bbox=bbox, hspacing=10000,
                                                   vspacing=10000)
         for code, poly in grid.items():
-            ewkt = utils.to_ewkt(poly, srid=7415)
+            ewkt = utils.polygon_to_ewkt(poly, srid=7415)
             log.debug(ewkt)
 
 class TestBBOX:
