@@ -239,6 +239,8 @@ class TestIntegration:
                                          path=data_output_dir, tile_list=tile_list,
                                          zip=False, features=True)
 
+    def test_create_geom_centroid_index(self, cfg_db3dnl, db3dnl_db):
+        good = db3dnl.index_geometry_centroid(db3dnl_db, cfg_db3dnl)
 
 class TestLoD2:
     def test_export_lod2(self, cfg_lod2, caplog):

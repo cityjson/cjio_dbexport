@@ -14,7 +14,8 @@ Changes
 
 Adds
 ****
-* Export CityJSONFeatures
+* Export CityJSONFeatures (only with the `export_tiles` command). The Transform parameters are hardcoded to the Zwaartepunt bij Putten in the Netherlands.
+* Create GIST index on the feature geometry centroids with `index --centroid`. This is required for exporting CityJSONFeatures.
 * Optional file name prefix
 
 Removes

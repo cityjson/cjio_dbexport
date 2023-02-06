@@ -25,7 +25,6 @@ SOFTWARE.
 """
 import logging
 import re
-from concurrent.futures._base import as_completed
 from concurrent.futures.process import ProcessPoolExecutor
 from datetime import date, time, datetime, timedelta
 from typing import Mapping, Sequence, Tuple, List
@@ -33,8 +32,7 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from pathlib import Path
 
-import click
-from click import ClickException, echo
+from click import ClickException
 from cjio import cityjson
 from cjio.models import CityObject, Geometry
 from psycopg2 import sql, pool, Error as pgError
@@ -878,3 +876,34 @@ def sql_cast_geometry(features: db.Schema) -> sql.Composed:
         for lod in features.field.geometry.keys()
     ]
     return sql.SQL(",").join(lod_fields)
+
+
+def index_geometry_centroid(conn, cfg: Mapping) -> bool:
+    results = []
+    for cotype, cotables in cfg['cityobject_type'].items():
+        for cotable in cotables:
+            features = db.Schema(cotable)
+            # It is enough to index one geometry column (in case there are multiple,
+            # with different LoD-s), because always the first LoD is used in the
+            # queries (see above).
+            lod = list(features.field.geometry.keys())[0]
+            geom_col_name = getattr(features.field.geometry, lod).name
+            query_params = {
+                'table': features.schema + features.table,
+                'geometry': geom_col_name.sqlid,
+                'idx_name': sql.Identifier("_".join([features.table.string, geom_col_name.string, 'centroid_idx']))
+            }
+            query = sql.SQL("""
+            CREATE INDEX IF NOT EXISTS {idx_name} 
+            ON {table} 
+            USING gist (ST_Centroid({geometry}))
+            """).format(**query_params)
+            try:
+                log.debug(conn.print_query(query))
+                conn.send_query(query)
+            except pgError as e:
+                log.error(f"{e.pgcode}\t{e.pgerror}")
+                results.append(False)
+            results.append(True)
+
+    return all(results)

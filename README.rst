@@ -321,6 +321,34 @@ It is not possible to export multiple LoDs into the same CityJSON file when expo
             cityobject_id: id_column
 
 
+Exporting CityJSONFeatures
+**************************
+
+If you want to export the CityObjects as `CityJSONFeatures <https://www.cityjson.org/specs/1.1.3/#text-sequences-and-streaming-with-cityjsonfeature>`_,
+you can do so with the ``export_tiles --features`` command. This command will create a
+single ``metadata.city.json`` file at the root of the output directory, and a
+subdirectory for each tile, containing the CityJSONFeatures (``.city.jsonl``) of that
+tile.
+
+The ``metadata.city.json`` contains the main CityJSON object with the Transform and CRS
+properties that are required for parsing the CityJSONFeatures.
+
+.. note:: The transform parameters are currently hardcoded to the the location of the
+    Zwaartepunt bij Putten in the Netherlands. If your are not exporting Dutch data,
+    open an issue and I'll add an option for setting the transform parameters.
+
+While the default ``export_tiles`` command writes a CityObject into each tile that
+intersects it, the ``--features`` option creates a 1-to-1 mapping of CityObject-tile.
+Which means that each CityObject is assigned to only one tile.
+In order to make this feasible, the input geometries need to have a spatial index on
+their centroids.
+
+You can index the geometry centroids on your own, with a query like this:
+
+``CREATE INDEX my index ON my table USING gist (ST_Centroid(geometry column))``
+
+Alternatively, use the ``index --centroid`` command as described below.
+
 Creating a tile index
 *********************
 
@@ -348,6 +376,13 @@ accordingly,
 3. upload the tile index into the relation that is declared in
 ``config.yml`` under the ``tile_index`` node.
 
+When using the ``export_tiles`` command with the ``--features`` option to export
+CityJSONFeatures, a spatial index (eg. GIST) is required on the feature geometry
+centroids. The ``index`` command can create this for you if you pass the ``--centroid``
+options, creating an index on each input table as
+``USING gist (ST_Centroid(geometry column))``.
+**Note that this will add an additional index to your data tables.**
+
 
 Limitations
 ------------
@@ -357,6 +392,8 @@ Limitations
 + The geometry is expected to be a ``MULTIPOLYGON`` of ``POLYGON Z`` in PostGIS
 
 + CRS is hardcoded to 7415
+
++ When exporting CityJSONFeatures, the Transform parameters are hardcoded to the Zwaartepunt bij Putten in the Netherlands
 
 
 3DNL
@@ -371,7 +408,7 @@ Mapping of the 3DNL tables to CityJSON CityObjects:
 +-----------------------------+-------------------+
 | building                    | Building          |
 +-----------------------------+-------------------+
-| kunstwerkdeel_vlak          | GenericCityObject |
+| kunstwerkdeel_vlak          | OtherConstruction |
 +-----------------------------+-------------------+
 | onbegroeidterreindeel_vlak  | LandUse           |
 +-----------------------------+-------------------+
@@ -385,7 +422,7 @@ Mapping of the 3DNL tables to CityJSON CityObjects:
 +-----------------------------+-------------------+
 | pand                        | LandUse           |
 +-----------------------------+-------------------+
-| scheiding_vlak              | GenericCityObject |
+| scheiding_vlak              | OtherConstruction |
 +-----------------------------+-------------------+
 | waterdeel_vlak              | WaterBody         |
 +-----------------------------+-------------------+

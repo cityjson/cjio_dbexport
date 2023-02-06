@@ -240,10 +240,12 @@ def export_extent_cmd(ctx, extent, filename):
 @click.command('index')
 @click.option('--drop', is_flag=True,
               help="Drop the tile_index.table if it exists.")
+@click.option('--centroid', is_flag=True,
+              help="Create a spatial index on the input geometry centroids.")
 @click.argument('extent', type=click.File('r'))
 @click.argument('tilesize', type=float, nargs=2)
 @click.pass_context
-def index_cmd(ctx, extent, tilesize, drop):
+def index_cmd(ctx, extent, tilesize, drop, centroid):
     """Create a tile index for the specified extent.
 
     Run this command to create rectangular tiles for EXTENT and store the
@@ -360,8 +362,16 @@ def index_cmd(ctx, extent, tilesize, drop):
                                   tile_index=tile_index)
         if not good:
             raise click.ClickException(
-                f"Could not create SP-GiST on {table} geometry."
+                f"Could not create GiST on {table} geometry."
                 f"Check the logs for details.")
+        if centroid:
+            click.echo("Indexing input geometry centroids")
+            good = db3dnl.index_geometry_centroid(conn, ctx.obj['cfg'])
+        if not good:
+            raise click.ClickException(
+                f"Could not GiST on feature geometry centroids."
+                f"Check the logs for details.")
+
     finally:
         conn.close()
 
