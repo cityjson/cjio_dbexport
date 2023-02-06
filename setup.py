@@ -14,7 +14,7 @@ requirements = [
     'Click>=7.0',
     'psycopg2>=2.8',
     'PyYAML>=5.1.2',
-    'cjio @ git+https://github.com/cityjson/cjio.git@develop#egg=cjio'
+    'cjio>=0.8.1'
 ]
 
 setup_requirements = ['pytest-runner', ]
@@ -52,6 +52,6 @@ setup(
     test_suite='tests',
     tests_require=test_requirements,
     url='https://github.com/balazsdukai/cjio_dbexport',
-    version='0.8.8',
+    version='0.9.0',
     zip_safe=False,
 )
