@@ -51,8 +51,7 @@ class TestParsing:
         features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
         tile_index = db.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
-                                   tile_index=tile_index,
-                                   extent=db3dnl_poly)
+                                   tile_index=tile_index, extent=db3dnl_poly)
         query_str = db3dnl_db.print_query(query)
         assert '"xml"' not in query_str
         assert 'Exporting with polygon' in caplog.text
@@ -61,8 +60,7 @@ class TestParsing:
         features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
         tile_index = db.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
-                                   tile_index=tile_index,
-                                   tile_list=('ci1',))
+                                   tile_index=tile_index, tile_list=('ci1',))
         query_str = db3dnl_db.print_query(query)
         assert '"xml"' not in query_str and '"identificatie"' in query_str
         assert 'Exporting with a list of tiles' in caplog.text
@@ -101,8 +99,7 @@ class TestIntegration:
         export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
-                                      'cityobject_type'],
-                                  tile_list=['ci1', 'ci2',])
+                                      'cityobject_type'], tile_list=['ci1', 'ci2', ])
         dbexport = list(export_gen)
         with open(db3dnl_4tiles_pickle, 'wb') as fo:
             pickle.dump(dbexport, fo)
@@ -127,8 +124,7 @@ class TestIntegration:
         export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
-                                      'cityobject_type'],
-                                  tile_list=['ci1', 'ci2',])
+                                      'cityobject_type'], tile_list=['ci1', 'ci2', ])
         dbexport = list(export_gen)
 
     def test_export_tile_list_one(self, data_dir, cfg_db3dnl, db3dnl_db,
@@ -154,9 +150,9 @@ class TestIntegration:
     def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl, caplog):
         caplog.set_level(logging.DEBUG)
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
-                                  tile_index=cfg_db3dnl['tile_index'],
-                                  cityobject_type=cfg_db3dnl[
-                                      'cityobject_type'], tile_list=['ci1', 'ci2',])
+                                tile_index=cfg_db3dnl['tile_index'],
+                                cityobject_type=cfg_db3dnl[
+                                    'cityobject_type'], tile_list=['ci1', 'ci2', ])
         with open(data_dir / 'db3dnl_4tiles.pickle', 'wb') as fo:
             pickle.dump(list(dbexport), fo)
         with open(db3dnl_4tiles_pickle, 'rb') as fo:
@@ -175,8 +171,7 @@ class TestIntegration:
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
                                 cityobject_type=cfg_db3dnl[
-                                    'cityobject_type'], tile_list=['ci1', ],
-                                threads=1)
+                                    'cityobject_type'], threads=1, tile_list=['ci1', ])
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         cm.get_info()
         outfile = data_output_dir / "gb2.city.json"
@@ -198,8 +193,7 @@ class TestIntegration:
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
                                 cityobject_type=cfg_db3dnl[
-                                    'cityobject_type'], tile_list=['ci1', ],
-                                threads=1)
+                                    'cityobject_type'], threads=1, tile_list=['ci1', ])
         cm = db3dnl.convert(dbexport, cfg=cfg_db3dnl)
         assert 'LoD = [1.0, 1.2, 1.3]' in cm.get_info(long=True)
 

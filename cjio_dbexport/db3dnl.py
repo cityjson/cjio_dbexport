@@ -47,6 +47,7 @@ log = logging.getLogger(__name__)
 TRANSLATE = [171800.0, 472700.0, 0.0]
 IMPORTANT_DIGITS = 3
 
+
 def get_tile_list(cfg: Mapping, tiles: List) -> List:
     conn = db.Db(**cfg['database'])
     if not conn.create_functions():
@@ -55,11 +56,12 @@ def get_tile_list(cfg: Mapping, tiles: List) -> List:
     tile_index = db.Schema(cfg['tile_index'])
     try:
         tile_list = with_list(conn=conn, tile_index=tile_index,
-                                     tile_list=tiles)
+                              tile_list=tiles)
         log.info(f"Found {len(tile_list)} tiles in the tile index.")
 
     except BaseException as e:
-        raise BaseException(f"Could not generate tile_list. Check the logs for details.\n{e}")
+        raise BaseException(
+            f"Could not generate tile_list. Check the logs for details.\n{e}")
     finally:
         conn.close()
     return tile_list
@@ -86,7 +88,7 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
         cityjson_meta["vertices"] = []
         # set scale
         ss = '0.'
-        ss += '0'*(IMPORTANT_DIGITS - 1)
+        ss += '0' * (IMPORTANT_DIGITS - 1)
         ss += '1'
         ss = float(ss)
         cityjson_meta["transform"] = {"scale": [ss, ss, ss], "translate": TRANSLATE}
@@ -153,13 +155,10 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
         filepath is further processed into '/path/to/myfile/id.city.json'
     """
     try:
-        dbexport = query(
-            conn_cfg=cfg["database"],
-            tile_index=cfg["tile_index"],
-            cityobject_type=cfg["cityobject_type"],
-            threads=1,
-            tile_list=(tile,),
-        )
+        strict_tile_query = True if features else False
+        dbexport = query(conn_cfg=cfg["database"], tile_index=cfg["tile_index"],
+                         cityobject_type=cfg["cityobject_type"], threads=1,
+                         tile_list=(tile,), strict_tile_query=strict_tile_query)
     except BaseException as e:
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
@@ -302,7 +301,8 @@ def table_to_cityobjects(tabledata, cotype: str, cfg_geom: dict, rounding: int):
             if key not in special_fields and "geom_" not in key:
                 if isinstance(attr, float):
                     co.attributes[key] = round(attr, rounding)
-                elif isinstance(attr, date) or isinstance(attr, time) or isinstance(attr, datetime):
+                elif isinstance(attr, date) or isinstance(attr, time) or isinstance(
+                        attr, datetime):
                     co.attributes[key] = attr.isoformat()
                 elif isinstance(attr, timedelta):
                     co.attributes[key] = str(attr)
@@ -348,7 +348,7 @@ def record_to_geometry(record: Mapping, cfg_geom: dict) -> Sequence[Geometry]:
 
 
 def record_to_surfaces(geomtype: str, boundary: Sequence,
-                        semantics: Sequence[int], semantics_mapping: dict) -> dict:
+                       semantics: Sequence[int], semantics_mapping: dict) -> dict:
     """Create a CityJSON Semantic Surface object from an array of labels and a
     CityJSON geometry representation.
     """
@@ -363,23 +363,18 @@ def record_to_surfaces(geomtype: str, boundary: Sequence,
             log.warning("Encountered unequal sized geometry shell and semantics arrays")
         else:
             for i, srf in enumerate(shell):
-                surfaces[semantics[i]]['surface_idx'].append([0,i])
+                surfaces[semantics[i]]['surface_idx'].append([0, i])
     elif geomtype == "MultiSurface":
         for i, srf in enumerate(boundary):
             surfaces[semantics[i]]['surface_idx'].append(i)
     return {sem: idx for sem, idx in surfaces.items() if len(idx['surface_idx']) > 0}
 
 
-def query(
-    conn_cfg: Mapping,
-    tile_index: Mapping,
-    cityobject_type: Mapping,
-    threads=None,
-    tile_list=None,
-    bbox=None,
-    extent=None,
-):
-    """Export a table from PostgreSQL. Multithreading, with connection pooling."""
+def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
+          threads=None, tile_list=None, bbox=None, extent=None,
+          strict_tile_query=False):
+    """Export a table from PostgreSQL. Multithreading, with connection pooling.
+    """
     # see: https://realpython.com/intro-to-python-threading/
     # see: https://stackoverflow.com/a/39310039
     # Need one thread per table
@@ -395,14 +390,10 @@ def query(
                     log.debug(f"CityObject {cotype} from table {tablename}")
                     features = db.Schema(cotable)
                     tx = db.Schema(tile_index)
-                    sql_query = build_query(
-                        conn=conn,
-                        features=features,
-                        tile_index=tx,
-                        tile_list=tile_list,
-                        bbox=bbox,
-                        extent=extent,
-                    )
+                    sql_query = build_query(conn=conn, features=features, tile_index=tx,
+                                            tile_list=tile_list, bbox=bbox,
+                                            extent=extent,
+                                            strict_tile_query=strict_tile_query)
                     try:
                         # Note that resultset can be []
                         yield (cotype, tablename), conn.get_dict(sql_query)
@@ -433,14 +424,10 @@ def query(
                         log.debug(f"CityObject {cotype} from table {cotable['table']}")
                         features = db.Schema(cotable)
                         tx = db.Schema(tile_index)
-                        sql_query = build_query(
-                            conn=conn,
-                            features=features,
-                            tile_index=tx,
-                            tile_list=tile_list,
-                            bbox=bbox,
-                            extent=extent,
-                        )
+                        sql_query = build_query(conn=conn, features=features,
+                                                tile_index=tx, tile_list=tile_list,
+                                                bbox=bbox, extent=extent,
+                                                strict_tile_query=strict_tile_query)
                         # Schedule the DB query for execution and store the returned
                         # Future together with the cotype and table name
                         future = executor.submit(conn.get_dict, sql_query)
@@ -466,17 +453,16 @@ def query(
         raise ValueError(f"Number of threads must be greater than 0.")
 
 
-def build_query(
-    conn: db.Db,
-    features: db.Schema,
-    tile_index: db.Schema,
-    tile_list=None,
-    bbox=None,
-    extent=None,
-):
+def build_query(conn: db.Db, features: db.Schema, tile_index: db.Schema, tile_list=None,
+                bbox=None, extent=None, strict_tile_query=False):
     """Build an SQL query for extracting CityObjects from a single table.
 
     ..todo: make EPSG a parameter
+    :param strict_tile_query: Used when using a `tile_list`. If true, create a 1-to-1
+        mapping of feature-tile. If false, create a
+        1-to-many mapping (one feature can belong to multiple tiles). Requires that the
+        feature geometry is indexed as `... USING gist (st_centroid(geometry))`,
+        otherwise the spatial index won't be used for the query.
     """
     # Set EPSG
     epsg = 7415
@@ -505,14 +491,15 @@ def build_query(
     elif tile_list:
         log.info(f"Exporting with a list of tiles {tile_list}")
         if features.field.get("tile"):
-            log.debug(f"Found 'tile' tag in the cityobject table, matching objects on tile ID")
+            log.debug(
+                f"Found 'tile' tag in the cityobject table, matching objects on tile ID")
             polygons_sub, attr_where, extent_sub = query_tiles_in_list(
                 features=features, tile_index=tile_index, tile_list=tile_list,
-                with_intersection=False
-            )
+                with_intersection=False)
         else:
             polygons_sub, attr_where, extent_sub = query_tiles_in_list(
-                features=features, tile_index=tile_index, tile_list=tile_list
+                features=features, tile_index=tile_index, tile_list=tile_list,
+                strict=strict_tile_query
             )
     elif extent:
         log.info(f"Exporting with polygon extent")
@@ -586,7 +573,7 @@ def query_all(features) -> Tuple[sql.Composed, ...]:
 
 
 def query_bbox(
-    features: db.Schema, bbox: Sequence[float], epsg: int
+        features: db.Schema, bbox: Sequence[float], epsg: int
 ) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in a BBOX."""
     # One geometry column is enough to restrict the selection to the BBOX
@@ -663,7 +650,7 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
     ).format(**query_params)
 
     sql_where_attr_intersects = sql.SQL(
-    """
+        """
     WHERE ST_3DIntersects(
         a.{geometry_0},
         {poly}
@@ -676,11 +663,14 @@ def query_extent(features: db.Schema, ewkt: str) -> Tuple[sql.Composed, ...]:
     return sql_polygons, sql_where_attr_intersects, sql_extent
 
 
-def query_tiles_in_list(
-    features: db.Schema, tile_index: db.Schema, tile_list: Sequence[str],
-        with_intersection: bool = True
-) -> Tuple[sql.Composed, ...]:
+def query_tiles_in_list(features: db.Schema, tile_index: db.Schema,
+                        tile_list: Sequence[str], with_intersection: bool = True,
+                        strict=False) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in the tile list.
+    :param strict: If true, create a 1-to-1 mapping of feature-tile. If false, create a
+        1-to-many mapping (one feature can belong to multiple tiles). Requires that the
+        feature geometry is indexed as `... USING gist (st_centroid(geometry))`,
+        otherwise the spatial index won't be used for the query.
     :param features:
     :param tile_index:
     :param tile_list:
@@ -703,44 +693,77 @@ def query_tiles_in_list(
         "geometries": sql_cast_geometry(features),
         "tile_index": tile_index.schema + tile_index.table,
         "tx_geom": tile_index.field.geometry.sqlid,
+        "tx_geom_sw": tile_index.field.geometry_sw_boundary.sqlid,
         "tx_pk": tile_index.field.pk.sqlid,
         "tile_list": sql.Literal(tl_tup),
     }
 
     if with_intersection:
-        sql_extent = sql.SQL(
+        if strict:
+            sql_extent = sql.SQL(
+                """
+            extent AS (
+                SELECT ST_Union({tx_geom}) AS geom, ST_Union({tx_geom_sw}) AS geom_sw
+                FROM {tile_index}
+                WHERE {tx_pk} IN {tile_list}),
             """
-        extent AS (
-            SELECT ST_Union({tx_geom}) geom
-            FROM {tile_index}
-            WHERE {tx_pk} IN {tile_list}),
-        """
-        ).format(**query_params)
+            ).format(**query_params)
 
-        sql_polygon = sql.SQL(
+            sql_polygon = sql.SQL(
+                """
+            geom_in_extent AS (
+                SELECT a.*
+                FROM {tbl} a,
+                     extent t
+                WHERE ST_ContainsProperly(t.geom, ST_Centroid(a.{tbl_geom}))
+                   OR ST_3DIntersects(t.geom_sw, ST_Centroid(a.{tbl_geom})))
+            ,polygons AS (
+                SELECT 
+                    {tbl_pk} pk,
+                    {geometries}
+                FROM geom_in_extent b)
             """
-        geom_in_extent AS (
-            SELECT a.*
-            FROM {tbl} a,
-                extent t
-            WHERE ST_3DIntersects(t.geom,
-                                a.{tbl_geom})),
-        polygons AS (
-            SELECT 
-                {tbl_pk} pk,
-                {geometries}
-            FROM geom_in_extent b)
-        """
-        ).format(**query_params)
+            ).format(**query_params)
 
-        sql_where_attr_intersects = sql.SQL(
+            sql_where_attr_intersects = sql.SQL(
+                """
+            ,extent t WHERE ST_ContainsProperly(t.geom, ST_Centroid(a.{tbl_geom}))
+                         OR ST_3DIntersects(t.geom_sw, ST_Centroid(a.{tbl_geom}))
             """
-        ,extent t WHERE ST_3DIntersects(t.geom, a.{tbl_geom})
-        """
-        ).format(**query_params)
+            ).format(**query_params)
+        else:
+            sql_extent = sql.SQL(
+                """
+            extent AS (
+                SELECT ST_Union({tx_geom}) geom
+                FROM {tile_index}
+                WHERE {tx_pk} IN {tile_list}),
+            """
+            ).format(**query_params)
+
+            sql_polygon = sql.SQL(
+                """
+            geom_in_extent AS (
+                SELECT a.*
+                FROM {tbl} a,
+                     extent t
+                WHERE ST_3DIntersects(t.geom, a.{tbl_geom}))
+            ,polygons AS (
+                SELECT 
+                    {tbl_pk} pk,
+                    {geometries}
+                FROM geom_in_extent b)
+            """
+            ).format(**query_params)
+
+            sql_where_attr_intersects = sql.SQL(
+                """
+            ,extent t WHERE ST_3DIntersects(t.geom, a.{tbl_geom})
+            """
+            ).format(**query_params)
     else:
         sql_polygon = sql.SQL(
-        """
+            """
         polygons AS (
             SELECT 
                 {tbl_pk} pk,
@@ -775,7 +798,7 @@ def with_list(conn: db.Db, tile_index: db.Schema, tile_list: Tuple[str]) -> List
 
 
 def tiles_in_index(
-    conn: db.Db, tile_index: db.Schema, tile_list: Tuple[str]
+        conn: db.Db, tile_index: db.Schema, tile_list: Tuple[str]
 ) -> Tuple[List[str], List[str]]:
     """Return the tile IDs that are present in the tile index."""
     if not isinstance(tile_list, tuple):

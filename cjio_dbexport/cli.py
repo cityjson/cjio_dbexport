@@ -104,8 +104,7 @@ def export_all_cmd(ctx, filename):
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'],
-                                threads=1)
+                                    'cityobject_type'], threads=1)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cm.j["metadata"]["fileIdentifier"] = path.name
         save(cm, path=path, indent=False)
@@ -151,8 +150,8 @@ def export_tiles_cmd(ctx, tiles, merge, zip, jobs, features, dir):
             dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                     tile_index=ctx.obj['cfg']['tile_index'],
                                     cityobject_type=ctx.obj['cfg'][
-                                        'cityobject_type'], tile_list=tile_list,
-                                    threads=1)
+                                        'cityobject_type'], threads=1,
+                                    tile_list=tile_list)
             cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
             cm.j["metadata"]["fileIdentifier"] = filepath.name
             save(cm, path=filepath, indent=False)
@@ -191,8 +190,7 @@ def export_bbox_cmd(ctx, bbox, filename):
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'],
-                                bbox=bbox, threads=1)
+                                    'cityobject_type'], threads=1, bbox=bbox)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cm.j["metadata"]["fileIdentifier"] = path.name
         save(cm, path=path, indent=False)
@@ -228,8 +226,7 @@ def export_extent_cmd(ctx, extent, filename):
         dbexport = db3dnl.query(conn_cfg=ctx.obj['cfg']['database'],
                                 tile_index=ctx.obj['cfg']['tile_index'],
                                 cityobject_type=ctx.obj['cfg'][
-                                    'cityobject_type'], extent=polygon,
-                                threads=1)
+                                    'cityobject_type'], threads=1, extent=polygon)
         cm = db3dnl.convert(dbexport, cfg=ctx.obj['cfg'])
         cm.j["metadata"]["fileIdentifier"] = path.name
         save(cm, path=path, indent=False)
