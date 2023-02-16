@@ -58,11 +58,13 @@ jobs:
         run: |
           docker build --tag 3dgi/cjio_dbexport:${{ github.ref_name }} --file docker/cjio_dbexport.dockerfile .
           docker save --output cjio_dbexport-${{ github.ref_name }}-docker.tar 3dgi/cjio_dbexport:${{ github.ref_name }}
+      - name: gzip image
+        run: gzip cjio_dbexport-${{ github.ref_name }}-docker.tar
       - name: Upload docker image
         uses: actions/upload-artifact@v3
         with:
           name: cjio_dbexport-docker
-          path: cjio_dbexport-${{ github.ref_name }}-docker.tar
+          path: cjio_dbexport-${{ github.ref_name }}-docker.tar.gz
           retention-days: 1
 
   release:
