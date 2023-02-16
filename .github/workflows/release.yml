@@ -1,0 +1,89 @@
+name: Build and Release
+
+on:
+  push:
+    tags:
+      - v*
+
+permissions:
+  contents: read
+
+defaults:
+  run:
+    shell: bash
+
+jobs:
+  build-exe:
+    runs-on: ${{ matrix.os }}
+    strategy:
+      matrix:
+        os: [ windows-2022 ]
+    steps:
+      - uses: actions/checkout@v3
+      - name: Set up Python 3.8
+        uses: actions/setup-python@v3
+        with:
+          python-version: "3.8"
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pyinstaller
+          pip install -r requirements.txt
+      - name: pyinstaller
+        run: |
+          pyinstaller --name cjdb --onefile cjio_dbexport/cli.py --distpath $GITHUB_WORKSPACE/dist
+          sleep 1
+          ls -l $GITHUB_WORKSPACE/dist
+          $GITHUB_WORKSPACE/dist/cjdb.exe
+          $GITHUB_WORKSPACE/dist/cjdb.exe --version
+      - name: 7zip
+        run: |
+          7z a -t7z cjdb_x64_win.zip $GITHUB_WORKSPACE/dist/cjdb.exe
+      - name: list dirs
+        run: |
+          ls -l $GITHUB_WORKSPACE/dist
+          ls -l $GITHUB_WORKSPACE
+      - name: Upload exe
+        uses: actions/upload-artifact@v3
+        with:
+          name: cjio_dbexport-${{ matrix.os }}
+          path: ${{ github.workspace }}/cjdb_x64_win.zip
+          retention-days: 1
+
+  build-docker:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      - name: Build Docker image
+        run: |
+          docker build --tag 3dgi/cjio_dbexport:${{ github.ref_name }} --file docker/cjio_dbexport.dockerfile .
+          docker save --output cjio_dbexport-${{ github.ref_name }}-docker.tar 3dgi/cjio_dbexport:${{ github.ref_name }}
+      - name: Upload docker image
+        uses: actions/upload-artifact@v3
+        with:
+          name: cjio_dbexport-docker
+          path: cjio_dbexport-${{ github.ref_name }}-docker.tar
+          retention-days: 1
+
+  release:
+    runs-on: ubuntu-latest
+    needs: [build-exe, build-docker]
+    steps:
+      - uses: actions/download-artifact@v3
+        with:
+          path: build_artifact/
+      - name: Display structure of downloaded files
+        run: ls -R
+        working-directory: build_artifact
+      - name: Create release and upload artifact
+        # Release with an application bundle fails, because (.app) is actually a directory.
+        # As a workaround, the .app file can be zipped.
+        uses: softprops/action-gh-release@v1
+        if: startsWith(github.ref, 'refs/tags/')
+        with:
+          name: cjio_dbexport ${{ github.ref_name }}
+          files: ${{ github.workspace }}/build_artifact/*/*
+          draft: true
+          prerelease: true
+          fail_on_unmatched_files: true
+          token: ${{ secrets.GH_PAT }}
