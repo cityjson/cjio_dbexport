@@ -368,7 +368,7 @@ unit of the CRS in the database.
 The command above will,
 
 1. create rectangular polygons (tiles) of 1000m by 1000m for the extent
-of the polygon that is `netherlands.json <docs/netherlands.json>`,
+of the polygon that is `netherlands.json <docs/netherlands.json>`_,
 
 2. sort the tiles in Morton-order and create unique IDs for them
 accordingly,
