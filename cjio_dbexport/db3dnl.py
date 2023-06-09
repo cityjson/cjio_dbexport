@@ -43,7 +43,7 @@ log = logging.getLogger(__name__)
 
 # Zwaartepunt bij Putten, https://nl.wikipedia.org/wiki/Geografisch_middelpunt_van_Nederland
 TRANSLATE = [171800.0, 472700.0, 0.0]
-IMPORTANT_DIGITS = 3
+IMPORTANT_DIGITS = 4
 
 
 def get_tile_list(cfg: Mapping, tiles: List) -> List:
