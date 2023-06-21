@@ -2,6 +2,20 @@
 Changelog
 ==========
 
+0.9.2 (2023-06-21)
+------------------
+
+Changes
+*******
+* Lower the scale factor from 0.001 to 0.0001 in the Netherlands transform, because too low precision might move the coordinates in a way that leads to errors, like spike in triangulation later on.
+* Copy tile-by-tile when inserting the tile index, instead of bulk copy of the whole index (#35).
+
+Adds
+****
+* Netherlands geojson example (#36).
+* GitHub Actions release workflow.
+
+
 0.9.0 (2023-02-06)
 ------------------
 
