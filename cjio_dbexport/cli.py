@@ -322,31 +322,31 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
                 f"Could not create {tile_index.schema.string}."
                 f"{tile_index.table.string} in {conn.dbname}. Check the logs for "
                 f"details.")
+        
         # Upload the tile_index to the database
-        values = StringIO()
         for idx, code in quadtree_idx.items():
+            values = StringIO()
             sw_boundary = utils.rectangle_sw_boundary(grid[code])
             ewkt = utils.polygon_to_ewkt(polygon=grid[code],
                                          srid=ctx.obj['cfg']['tile_index']['srid'])
             ewkt_sw = utils.polyline_to_ewkt(sw_boundary,
                                              srid=ctx.obj['cfg']['tile_index']['srid'])
             values.write(f'{idx}\t{ewkt}\t{ewkt_sw}\n')
-        values.seek(0)
-        log.debug(f"First <value>={values.readline()}")
-        values.seek(0)
-        try:
-            with conn.conn:
-                with conn.conn.cursor() as cur:
-                    query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}, {tile_index.field.geometry_sw_boundary.string}) FROM STDIN WITH DELIMITER '\t'"
-                    log.debug(query)
-                    cur.copy_expert(
-                        sql=query,
-                        file=values)
-            click.echo(f"Inserted {len(grid)} tiles into {table}")
-        except pgError as e:
-            raise click.ClickException(e)
-        finally:
-            values.close()
+            values.seek(0)
+            try:
+                with conn.conn:
+                    with conn.conn.cursor() as cur:
+                        query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}, {tile_index.field.geometry_sw_boundary.string}) FROM STDIN WITH DELIMITER '\t'"
+                        log.debug(query)
+                        cur.copy_expert(
+                            sql=query,
+                            file=values)
+                log.debug(f"Inserted {idx} tile into {table}")
+            except pgError as e:
+                raise click.ClickException(e)
+            finally:
+                values.close()
+
         # Clip the tile index with the extent
         click.echo(f"Clipping tile index {table} to the provided extent "
                    f"polygon")
