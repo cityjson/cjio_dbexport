@@ -31,6 +31,7 @@ from typing import Mapping, Sequence, Tuple, List
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import json
 from pathlib import Path
+from time import time as current_time
 
 from click import ClickException
 from cjio import cityjson
@@ -125,17 +126,17 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
                                            cfg, zip, features))
 
         for i, future in enumerate(as_completed(futures)):
-            success, filepath = future.result()
+            success, filepath, co_per_sec = future.result()
             if success:
                 if features:
                     log.info(
-                        f"[{i + 1}/{len(tile_list)}] Saved all features from tile {filepath}")
+                        f"[{i + 1}/{len(tile_list)}] Saved all features from tile {filepath.name}. Performance: {co_per_sec:.2f} CityObjects per second.")
                 else:
                     log.info(
-                        f"[{i + 1}/{len(tile_list)}] Saved {filepath.name}")
+                        f"[{i + 1}/{len(tile_list)}] Saved tile {filepath.name}. Performance: {co_per_sec:.2f} CityObjects per second.")
             else:
                 if features:
-                    failed.extend(filepath)
+                    failed.extend(filepath.name)
                 else:
                     failed.append(filepath.stem)
         log.info(
@@ -152,6 +153,8 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
     filepath - Sth like '/path/to/myfile.city.json'. If 'features=True', then this
         filepath is further processed into '/path/to/myfile/id.city.json'
     """
+    time_start = current_time()
+    co_per_sec = 0
     try:
         strict_tile_query = True if features else False
         dbexport = query(conn_cfg=cfg["database"], tile_index=cfg["tile_index"],
@@ -159,7 +162,7 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
                          tile_list=(tile,), strict_tile_query=strict_tile_query)
     except BaseException as e:
         log.error(f"Failed to export tile {str(tile)}\n{e}")
-        return False, filepath
+        return False, filepath, co_per_sec
     try:
         translate = TRANSLATE if features else None
         cm = to_citymodel(dbexport, cfg=cfg, important_digits=IMPORTANT_DIGITS,
@@ -167,6 +170,7 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
     finally:
         del dbexport
     if cm is not None:
+        nr_cityobjects = len(cm.j["CityObjects"])
         if features:
             fail = []
             # e.g: 'gb2' in /home/cjio_dbexport/gb2.city.json
@@ -194,9 +198,12 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
                     log.exception(e)
                     fail.append(feature_id)
             if len(fail) > 0:
-                return False, fail
+                return False, fail, nr_cityobjects
             else:
-                return True, filedir
+                time_end = current_time()
+                duration_sec = round(time_end - time_start)
+                co_per_sec = nr_cityobjects / duration_sec
+                return True, filedir, co_per_sec
         else:
             cm.j["metadata"]["fileIdentifier"] = filepath.name
             try:
@@ -208,13 +215,16 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
                 else:
                     with open(filepath, "w") as fout:
                         fout.write(json_str)
-                return True, filepath
+                time_end = current_time()
+                duration_sec = round(time_end - time_start)
+                co_per_sec = nr_cityobjects / duration_sec
+                return True, filepath, co_per_sec
             except IOError as e:
                 log.error(f"Invalid output file: {filepath}\n{e}")
-                return False, filepath
+                return False, filepath, co_per_sec
             except BaseException as e:
                 log.exception(e)
-                return False, filepath
+                return False, filepath, co_per_sec
             finally:
                 del cm
                 try:
@@ -226,7 +236,7 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
             f"Failed to create CityJSON from {filepath.stem},"
             f" check the logs for details."
         )
-        return False, filepath
+        return False, filepath, co_per_sec
 
 
 def to_citymodel(dbexport, cfg, important_digits: int = 3, translate=None):
