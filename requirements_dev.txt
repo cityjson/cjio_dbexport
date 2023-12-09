@@ -10,5 +10,5 @@ twine==3.2.0
 Click==7.1
 pytest==6.1.0
 pytest-runner==5.2
-pyinstaller==4.0
+pyinstaller==5.13.1
 PyYAML==6.0
