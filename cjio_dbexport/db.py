@@ -29,8 +29,8 @@ from typing import List, Tuple
 from collections import abc
 from keyword import iskeyword
 
-import psycopg2
-from psycopg2 import sql, extras, extensions, errors
+import psycopg
+from psycopg import sql, rows
 
 log = logging.getLogger(__name__)
 
@@ -38,7 +38,7 @@ log = logging.getLogger(__name__)
 class Db(object):
     """A database connection class.
 
-    :raise: :class:`psycopg2.OperationalError`
+    :raise: :class:`psycopg.OperationalError`
     """
 
     def __init__(self, conn=None, dbname=None, host=None, port=None,
@@ -50,40 +50,54 @@ class Db(object):
             self.user = user
             self.password = password
             try:
-                self.conn = psycopg2.connect(
+                self.conn = psycopg.connect(
                     dbname=dbname, host=host, port=port, user=user,
                     password=password
                 )
-                log.debug(f"Opened connection to {self.conn.get_dsn_parameters()}")
-            except psycopg2.OperationalError:
+                log.debug(f"Opened connection to {self.conn.info.get_parameters()}")
+            except psycopg.OperationalError:
                 log.exception("I'm unable to connect to the database")
                 raise
         else:
             self.conn = conn
 
-    def send_query(self, query: psycopg2.sql.Composable):
+    def dsn(self):
+        """PostgreSQL's connection Data Source Name (DSN)."""
+        _d = []
+        if self.dbname:
+            _d.append(f"dbname={self.dbname}")
+        if self.user:
+            _d.append(f"user={self.user}")
+        if self.port:
+            _d.append(f"port={self.port}")
+        if self.host:
+            _d.append(f"host={self.host}")
+        if self.password:
+            _d.append(f"password={self.password}")
+        return " ".join(_d)
+
+    def send_query(self, query: psycopg.sql.Composable):
         """Send a query to the DB when no results need to return (e.g. CREATE).
         """
         with self.conn:
             with self.conn.cursor() as cur:
                 cur.execute(query)
 
-    def get_query(self, query: psycopg2.sql.Composable) -> List[Tuple]:
+    def get_query(self, query: psycopg.sql.Composable) -> List[Tuple]:
         """DB query where the results need to return (e.g. SELECT)."""
         with self.conn:
             with self.conn.cursor() as cur:
                 cur.execute(query)
                 return cur.fetchall()
 
-    def get_dict(self, query: psycopg2.sql.Composable) -> dict:
+    def get_dict(self, query: psycopg.sql.Composable) -> dict:
         """DB query where the results need to return as a dictionary."""
         with self.conn:
-            with self.conn.cursor(
-                cursor_factory=psycopg2.extras.RealDictCursor) as cur:
+            with self.conn.cursor(row_factory=rows.dict_row) as cur:
                 cur.execute(query)
                 return cur.fetchall()
 
-    def print_query(self, query: psycopg2.sql.Composable) -> str:
+    def print_query(self, query: psycopg.sql.Composable) -> str:
         """Format a SQL query for printing by replacing newlines and tab-spaces.
         """
 
@@ -98,27 +112,37 @@ class Db(object):
 
     def vacuum(self, schema: str, table: str):
         """Vacuum analyze a table."""
-        self.conn.set_isolation_level(
-            psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-        schema = psycopg2.sql.Identifier(schema)
-        table = psycopg2.sql.Identifier(table)
-        query = psycopg2.sql.SQL("""
-        VACUUM ANALYZE {schema}.{table};
-        """).format(schema=schema, table=table)
-        self.send_query(query)
+        # Set autocommit mode for vacuum operations
+        old_autocommit = self.conn.autocommit
+        self.conn.autocommit = True
+        try:
+            schema = sql.Identifier(schema)
+            table = sql.Identifier(table)
+            query = sql.SQL("""
+            VACUUM ANALYZE {schema}.{table};
+            """).format(schema=schema, table=table)
+            self.send_query(query)
+        finally:
+            # Restore original autocommit setting
+            self.conn.autocommit = old_autocommit
 
     def vacuum_full(self):
         """Vacuum analyze the whole database."""
-        self.conn.set_isolation_level(
-            psycopg2.extensions.ISOLATION_LEVEL_AUTOCOMMIT)
-        query = psycopg2.sql.SQL("VACUUM ANALYZE;")
-        self.send_query(query)
+        # Set autocommit mode for vacuum operations
+        old_autocommit = self.conn.autocommit
+        self.conn.autocommit = True
+        try:
+            query = sql.SQL("VACUUM ANALYZE;")
+            self.send_query(query)
+        finally:
+            # Restore original autocommit setting
+            self.conn.autocommit = old_autocommit
 
     def check_postgis(self):
         """Check if PostGIS is installed."""
         try:
             version = self.get_query("SELECT PostGIS_version();")[0][0]
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             version = None
         return version
 
@@ -128,7 +152,7 @@ class Db(object):
         with self.conn:
             with self.conn.cursor() as cur:
                 cur.execute(query)
-                return [desc[0] for desc in cur.description]
+                return [desc.name for desc in cur.description]
 
     def close(self):
         """Close connection."""
@@ -151,81 +175,62 @@ class Db(object):
             duplicated at the end.
         """
         mpoly_to_msrf = sql.SQL("""
-        CREATE OR REPLACE
-        FUNCTION cjdb_multipolygon_to_multisurface(
-            multipolygon geometry
-        ) RETURNS FLOAT8[] AS $$ 
-        WITH polygons AS (
-            SELECT
-                ST_DumpPoints(multipolygon) geom
-        )
-        , expand_points AS (
-            SELECT
-                (geom).PATH[1] exterior
-                , (geom).PATH[2] interior
-                , (geom).PATH[3] vertex
-                , ARRAY[ST_X((geom).geom)
-                , ST_Y((geom).geom)
-                , ST_Z((geom).geom)] point
-            FROM
-                polygons
-            WHERE
-                (geom).PATH[3] > 1
-                ORDER BY exterior
-                , interior
-                , vertex
-        )
-        , rings AS (
-            SELECT
-                exterior
-                , interior
-                , ARRAY_AGG(point) geom
-            FROM
-                expand_points
-            GROUP BY
-                interior
-                , exterior
-            ORDER BY
-                exterior
-                , interior
-        )
-        , surfaces AS (
-            SELECT
-                ARRAY_AGG(geom) geom
-            FROM
-                rings
-            GROUP BY
-                exterior
-            ORDER BY
-                exterior
-        )
-        SELECT
-            ARRAY_AGG(geom) geom
-        FROM
-            surfaces;
-        $$ LANGUAGE SQL;
-        
-        COMMENT ON 
-        FUNCTION cjdb_multipolygon_to_multisurface(
-            IN multipolygon geometry
-        ) IS 'Cast a PostGIS MultiPolygon geometry into a CityJSON MultiSurface 
+                                CREATE OR REPLACE
+                                    FUNCTION cjdb_multipolygon_to_multisurface(
+                                    multipolygon geometry
+                                ) RETURNS FLOAT8[] AS
+                                $$
+                                WITH polygons
+                                    AS (SELECT ST_DumpPoints(multipolygon) geom)
+                                   , expand_points AS (SELECT (geom).PATH[1] exterior
+                                                            , (geom).PATH[2] interior
+                                                            , (geom).PATH[3] vertex
+                                                            , ARRAY [ST_X((geom).geom)
+                                        , ST_Y((geom).geom)
+                                        , ST_Z((geom).geom)]                 point
+                                                       FROM polygons
+                                                       WHERE (geom).PATH[3] > 1
+                                                       ORDER BY exterior
+                                                              , interior
+                                                              , vertex)
+                                   , rings AS (SELECT exterior
+                                                    , interior
+                                                    , ARRAY_AGG(point) geom
+                                               FROM expand_points
+                                               GROUP BY interior
+                                                      , exterior
+                                               ORDER BY exterior
+                                                      , interior)
+                                   , surfaces AS (SELECT ARRAY_AGG(geom) geom
+                                                  FROM rings
+                                                  GROUP BY exterior
+                                                  ORDER BY exterior)
+                                SELECT ARRAY_AGG(geom) geom
+                                FROM surfaces;
+                                $$ LANGUAGE SQL;
+
+                                COMMENT ON
+                                    FUNCTION cjdb_multipolygon_to_multisurface(
+                                    IN multipolygon geometry
+                                    ) IS 'Cast a PostGIS MultiPolygon geometry into a CityJSON MultiSurface 
         geometry array representation.';
-        """)
+                                """)
         success = []
         try:
             self.send_query(mpoly_to_msrf)
             log.info("Created PostgreSQL FUNCTION "
                      "cjdb_multipolygon_to_multisurface()")
             success.append(True)
-        except psycopg2.Error as e:
+        except psycopg.Error as e:
             log.exception(f"Error creating PostgreSQL FUNCTION "
-                          f"cjdb_multipolygon_to_multisurface()\n{e.pgerror}")
+                          f"cjdb_multipolygon_to_multisurface()\n{e}")
             success.append(False)
         return all(success)
 
 
 def identifier(relation_name):
-    """Property factory for returning a :class:`psycopg2.sql.Identifier`."""
+    """Property factory for returning a :class:`psycopg.sql.Identifier`."""
+
     def id_getter(instance):
         return sql.Identifier(instance.__dict__[relation_name])
 
@@ -236,7 +241,8 @@ def identifier(relation_name):
 
 
 def literal(relation_name):
-    """Property factory for returning a :class:`psycopg2.sql.Literal`."""
+    """Property factory for returning a :class:`psycopg.sql.Literal`."""
+
     def lit_getter(instance):
         return sql.Literal(instance.__dict__[relation_name])
 
@@ -250,7 +256,7 @@ class DbRelation:
     """Database relation name.
 
     An escaped SQL identifier of the relation name is accessible through the
-    `sqlid` property, which returns a :class:`psycopg2.sql.Identifier`.
+    `sqlid` property, which returns a :class:`psycopg.sql.Identifier`.
 
     Concatenation of identifiers is supported through the `+` operator.
     For example `DbRelation('schema') + DbRelation('table')`.
@@ -316,4 +322,3 @@ class Schema:
             return getattr(self.__data, name)
         else:
             return Schema(self.__data[name])
-

@@ -63,8 +63,8 @@ def cfg_db3dnl_path(data_dir):
     return data_dir / 'db3dnl_config.yml'
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-15-3.3": 5558}],
-                ids=["postgis-10-2.5", "postgis-15-3.3"])
+                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
+                ids=["postgis-10-2.5", "postgis-17-3.5"])
 def cfg_db3dnl(request, cfg_db3dnl_path):
     with open(cfg_db3dnl_path, 'r') as fo:
         c = configure.parse_configuration(fo)
@@ -73,8 +73,8 @@ def cfg_db3dnl(request, cfg_db3dnl_path):
         return c
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-15-3.3": 5558}],
-                ids=["postgis-10-2.5", "postgis-15-3.3"])
+                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
+                ids=["postgis-10-2.5", "postgis-17-3.5"])
 def cfg_db3dnl_path_param(request, cfg_db3dnl_path, data_output_dir):
     with open(cfg_db3dnl_path, 'r') as fo:
         c = configure.parse_configuration(fo)
@@ -87,8 +87,8 @@ def cfg_db3dnl_path_param(request, cfg_db3dnl_path, data_output_dir):
 
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-15-3.3": 5558}],
-                ids=["postgis-10-2.5", "postgis-15-3.3"])
+                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
+                ids=["postgis-10-2.5", "postgis-17-3.5"])
 def cfg_db3dnl_int(request, data_dir):
     config = data_dir / 'db3dnl_config_int.yml'
     with open(config, 'r') as fo:
@@ -138,8 +138,8 @@ def cfg_lod2_path(data_dir):
     return data_dir / 'db3dbag_config_lod2.yml'
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-15-3.3": 5558}],
-                ids=["postgis-10-2.5", "postgis-15-3.3"])
+                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
+                ids=["postgis-10-2.5", "postgis-17-3.5"])
 def cfg_lod2_path_param(request, cfg_lod2_path, data_output_dir):
     with open(cfg_lod2_path, 'r') as fo:
         c = configure.parse_configuration(fo)

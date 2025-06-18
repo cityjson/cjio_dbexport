@@ -24,9 +24,11 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import logging
-from typing import Mapping
-from psycopg2 import sql, errors
-from psycopg2 import Error as pgError
+
+import pgutils
+import psycopg.errors
+from psycopg import sql
+from psycopg.errors import Error as pgError
 from click import secho
 
 from cjio_dbexport import db
@@ -34,7 +36,7 @@ from cjio_dbexport import db
 log = logging.getLogger(__name__)
 
 
-def create_temp_table(conn: db.Db, srid: int, extent: sql.Identifier) -> bool:
+def create_temp_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.Identifier) -> bool:
     """Creates a temp table in Postgres for storing the tile index extent.
     :returns: True on success
     """
@@ -56,11 +58,11 @@ def create_temp_table(conn: db.Db, srid: int, extent: sql.Identifier) -> bool:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
-def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
+def create_tx_table(conn: pgutils.PostgresConnection, tile_index, srid, drop=False) -> bool:
     """Creates a temp table in Postgres for storing the tile index extent.
     :returns: True on success
     """
@@ -97,14 +99,14 @@ def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
             conn.send_query(drop_query)
         log.debug(conn.print_query(query))
         conn.send_query(query)
+    except psycopg.errors.DuplicateTable as e:
+        log.error(e)
+        secho("It is not possible append the tile index to an existing "
+              "table. Use --drop if you want to DROP the existing table.",
+              fg='red')
+        return False
     except pgError as e:
-        if e.pgcode == '42P07':
-            log.error(f"{e.pgcode}\t{e.pgerror}")
-            secho("It is not possible append the tile index to an existing "
-                  "table. Use --drop if you want to DROP the existing table.",
-                  fg='red')
-        else:
-            log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
@@ -118,12 +120,12 @@ def insert_ewkt(conn, temp_table: sql.Identifier, ewkt: str) -> bool:
     try:
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
 
-def clip_grid(conn: db.Db, tile_index: db.Schema, extent: sql.Identifier) -> bool:
+def clip_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema, extent: sql.Identifier) -> bool:
     """Intersect the tile_index with the extent in PostGIS and drop the
     cells from tile_index that do not intersect."""
     query_params = {
@@ -150,12 +152,12 @@ def clip_grid(conn: db.Db, tile_index: db.Schema, extent: sql.Identifier) -> boo
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
 
-def gist_on_grid(conn: db.Db, tile_index: db.Schema) -> bool:
+def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema) -> bool:
     """Create a GiST index on the tile index polygons."""
     query_params = {
         'table': tile_index.schema + tile_index.table,
@@ -170,7 +172,7 @@ def gist_on_grid(conn: db.Db, tile_index: db.Schema) -> bool:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     query_params = {
         'table': tile_index.schema + tile_index.table,
@@ -185,6 +187,6 @@ def gist_on_grid(conn: db.Db, tile_index: db.Schema) -> bool:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True

@@ -2,7 +2,7 @@
 """Testing the tiler module."""
 from cjio_dbexport import tiler
 import logging
-from psycopg2 import sql
+from psycopg import sql
 import pytest
 
 log = logging.getLogger(__name__)

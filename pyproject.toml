@@ -22,9 +22,10 @@ keywords = ["cjio_dbexport"]
 requires-python = ">=3.12"
 dependencies = [
     "Click>=8.2.1",
-    "psycopg>=3.2.9",
+    "psycopg[binary,pool]>=3.2.9",
     "PyYAML>=6.0.2",
-    "cjio>=0.10.1"
+    "cjio==0.9.0",
+    "pgutils @ git+https://github.com/balazsdukai/pgutils.git@2024.1013#egg=pgutils",
 ]
 
 [project.urls]
