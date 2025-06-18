@@ -1,3 +1,5 @@
 Download the database backup 'Kadaster3DBVDB.zip' that is required by the Docker containers.
 
 Download from: https://data.3dgi.xyz/3dtiles-test-data/Kadaster3DBVDB.zip
+
+Extract the Kadaster3DBVDB.zip into the cjio_dbexport/docker directory.

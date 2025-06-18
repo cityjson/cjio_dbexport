@@ -28,7 +28,7 @@ Requirements
 
 + PostgreSQL
 
-    + I'm testing against Postgres 10 + PostGIS 2.5, Postgres 15 + PostGIS 3.3
+    + I'm testing against Postgres 10 + PostGIS 2.5, Postgres 17 + PostGIS 3.5
 
 
 Install
