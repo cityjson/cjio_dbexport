@@ -46,14 +46,15 @@ def create_temp_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.I
                          f" file at tile_index.srid")
     query_params = {
         'temp_name': extent,
-        'srid': sql.Literal(srid)
+        'srid': srid
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
         CREATE TEMPORARY TABLE {temp_name}(
             gid serial PRIMARY KEY,  
             geom geometry(POLYGON, {srid})
         );
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
@@ -72,21 +73,22 @@ def create_tx_table(conn: pgutils.PostgresConnection, tile_index, srid, drop=Fal
                          f" file at tile_index.srid")
     query_schema = sql.SQL(
         "CREATE SCHEMA IF NOT EXISTS {};"
-    ).format(tile_index.schema.sqlid)
+    ).format(tile_index.schema.id)
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'srid': sql.Literal(srid),
-        'gid': tile_index.field.pk.sqlid,
-        'geom': tile_index.field.geometry.sqlid,
-        'geom_sw': tile_index.field.geometry_sw_boundary.sqlid
+        'srid': srid,
+        'gid': tile_index.field.pk.id,
+        'geom': tile_index.field.geometry.id,
+        'geom_sw': tile_index.field.geometry_sw_boundary.id
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
         CREATE TABLE {table}(
             {gid} text PRIMARY KEY,  
             {geom} geometry(POLYGON, {srid}),
             {geom_sw} geometry(LINESTRING, {srid})
         );
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     if drop:
         drop_query = sql.SQL(
             "DROP TABLE IF EXISTS {} CASCADE;"
@@ -114,9 +116,12 @@ def insert_ewkt(conn, temp_table: sql.Identifier, ewkt: str) -> bool:
     """Insert an EKWT representation of a polygon into PostGIS.
     :returns: True on success
     """
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
         INSERT INTO {extent} (geom) VALUES (ST_GeomFromEWKT({ewkt}));"""
-    ).format(extent=temp_table, ewkt=sql.Literal(ewkt))
+    )
+    query = pgutils.inject_parameters(query_empty, params={
+        "extent": temp_table, "ewkt" : ewkt
+    })
     try:
         conn.send_query(query)
     except pgError as e:
@@ -130,11 +135,11 @@ def clip_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema, extent: s
     cells from tile_index that do not intersect."""
     query_params = {
         'table_idx': tile_index.schema + tile_index.table,
-        'id': tile_index.field.pk.sqlid,
-        'geometry': tile_index.field.geometry.sqlid,
+        'id': tile_index.field.pk.id,
+        'geometry': tile_index.field.geometry.id,
         'table_extent': extent
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
     DELETE
     FROM
         {table_idx} ti2
@@ -147,7 +152,8 @@ def clip_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema, extent: s
             {table_extent} n
         WHERE
             NOT st_intersects(ti2.{geometry}, n.geom));
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
@@ -161,13 +167,14 @@ def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema) -> boo
     """Create a GiST index on the tile index polygons."""
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'geometry': tile_index.field.geometry.sqlid
+        'geometry': tile_index.field.geometry.id
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
     CREATE INDEX IF NOT EXISTS geom_idx ON
     {table}
         USING gist ({geometry});
     """).format(**query_params)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
@@ -176,13 +183,14 @@ def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema) -> boo
         return False
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary.sqlid
+        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
     CREATE INDEX IF NOT EXISTS geom_sw_boundary_idx ON
     {table}
         USING gist ({geometry_sw_boundary});
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)

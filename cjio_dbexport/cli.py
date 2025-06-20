@@ -332,8 +332,8 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             values.write(f'{idx}\t{ewkt}\t{ewkt_sw}\n')
             values.seek(0)
             try:
-                with psycopg.connect(conn.dsn) as conn:
-                    with conn.cursor() as cur:
+                with conn.connect() as connection:
+                    with connection.cursor() as cur:
                         query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}, {tile_index.field.geometry_sw_boundary.string}) FROM STDIN WITH DELIMITER '\t'"
                         log.debug(query)
                         with cur.copy(query) as copy:
