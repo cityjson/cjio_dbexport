@@ -5,10 +5,13 @@
 
 import pickle
 from pathlib import Path
+
+import pgutils
 import pytest
 import yaml
 
-from cjio_dbexport import configure, db
+from cjio_dbexport import configure, db, utils
+
 
 #------------------------------------ add option for running the full test set
 def pytest_addoption(parser):
@@ -58,13 +61,17 @@ def package_dir(root_dir):
 
 # ------------------------------------------------------------------- testing DB
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope='session')
 def cfg_db3dnl_path(data_dir):
     return data_dir / 'db3dnl_config.yml'
 
-@pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
-                ids=["postgis-10-2.5", "postgis-17-3.5"])
+
+# params = [{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
+# ids = ["postgis-10-2.5", "postgis-17-3.5"]
+@pytest.fixture(scope='session',
+                params=[{"postgis-17-3.5": 5558}],
+                ids=["postgis-17-3.5"]
+                )
 def cfg_db3dnl(request, cfg_db3dnl_path):
     with open(cfg_db3dnl_path, 'r') as fo:
         c = configure.parse_configuration(fo)
@@ -73,8 +80,8 @@ def cfg_db3dnl(request, cfg_db3dnl_path):
         return c
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
-                ids=["postgis-10-2.5", "postgis-17-3.5"])
+                params=[{"postgis-17-3.5": 5558}],
+                ids=["postgis-17-3.5"])
 def cfg_db3dnl_path_param(request, cfg_db3dnl_path, data_output_dir):
     with open(cfg_db3dnl_path, 'r') as fo:
         c = configure.parse_configuration(fo)
@@ -87,8 +94,8 @@ def cfg_db3dnl_path_param(request, cfg_db3dnl_path, data_output_dir):
 
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
-                ids=["postgis-10-2.5", "postgis-17-3.5"])
+                params=[{"postgis-17-3.5": 5558}],
+                ids=["postgis-17-3.5"])
 def cfg_db3dnl_int(request, data_dir):
     config = data_dir / 'db3dnl_config_int.yml'
     with open(config, 'r') as fo:
@@ -99,8 +106,8 @@ def cfg_db3dnl_int(request, data_dir):
 
 @pytest.fixture(scope='function')
 def db3dnl_poly(data_dir):
-    with open(data_dir / 'db3dnl_poly.pickle', 'rb') as fo:
-        yield pickle.load(fo)
+    # db3dnl_poly.geojson
+    return [ [ [ 80033.149634172412334, 448713.694506597646978 ], [ 79728.150836692744633, 447643.321368272707332 ], [ 80119.470048553455854, 447355.586653669248335 ], [ 80482.015788953824085, 447372.850736545457039 ], [ 80683.430089176254114, 447608.793202520289924 ], [ 80850.316223646266735, 448224.545491771714296 ], [ 81080.503995329039753, 448276.337740400340408 ], [ 81253.144824091126793, 448604.355315048305783 ], [ 80994.183580948010786, 448857.561863899347372 ], [ 80464.751706077615381, 448903.599418235942721 ], [ 80033.149634172412334, 448713.694506597646978 ] ] ]
 
 @pytest.fixture(scope='function')
 def db3dnl_poly_geojson(data_dir):
@@ -110,13 +117,12 @@ def db3dnl_poly_geojson(data_dir):
 def db3dnl_4tiles_pickle(data_dir):
     yield data_dir / 'db3dnl_4tiles.pickle'
 
-@pytest.fixture(scope='function')
+@pytest.fixture(scope='session')
 def db3dnl_db(cfg_db3dnl):
     # TODO: needs database setup
-    conn = db.Db(**cfg_db3dnl['database'])
-    assert conn.create_functions()
+    conn = pgutils.PostgresConnection(**cfg_db3dnl['database'])
+    assert utils.create_functions(conn)
     yield conn
-    conn.close()
 
 @pytest.fixture(scope='function')
 def nl_poly_path(data_dir):
@@ -138,8 +144,8 @@ def cfg_lod2_path(data_dir):
     return data_dir / 'db3dbag_config_lod2.yml'
 
 @pytest.fixture(scope='function',
-                params=[{"postgis-10-2.5": 5557}, {"postgis-17-3.5": 5558}],
-                ids=["postgis-10-2.5", "postgis-17-3.5"])
+                params=[{"postgis-17-3.5": 5558}],
+                ids=["postgis-17-3.5"])
 def cfg_lod2_path_param(request, cfg_lod2_path, data_output_dir):
     with open(cfg_lod2_path, 'r') as fo:
         c = configure.parse_configuration(fo)
@@ -169,9 +175,9 @@ def cfg_cjdb(cfg_cjdb_path):
         c = configure.parse_configuration(fo)
         yield c
 
-@pytest.fixture(scope='function')
-def cjdb_db(cfg_cjdb):
-    # TODO: needs database setup
-    conn = db.Db(**cfg_cjdb['database'])
-    yield conn
-    conn.close()
+# @pytest.fixture(scope='function')
+# def cjdb_db(cfg_cjdb):
+#     # TODO: needs database setup
+#     conn = db.Db(**cfg_cjdb['database'])
+#     yield conn
+#     conn.close()

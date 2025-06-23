@@ -106,8 +106,8 @@ class TestParsing:
 
 def test_zip_json(data_dir):
     """Write a zipped json with various compression"""
-    with (data_dir / "ic3.json").open("r") as fin:
+    with (data_dir / "ic3.city.json").open("r") as fin:
         data = fin.read()
     utils.write_zip(data=data.encode("utf-8"),
-                    filename="ic3.json",
+                    filename="ic3.city.json.zip",
                     outdir=Path("/tmp"))

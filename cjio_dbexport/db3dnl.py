@@ -24,6 +24,7 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import logging
+import multiprocessing
 import re
 from concurrent.futures.process import ProcessPoolExecutor
 from datetime import date, time, datetime, timedelta
@@ -49,7 +50,7 @@ TRANSLATE = [171800.0, 472700.0, 0.0]
 IMPORTANT_DIGITS = 4
 
 
-def get_tile_list(cfg: Mapping, tiles: List) -> List:
+def get_tile_list(cfg: Mapping, tiles: List[str]) -> List:
     conn = pgutils.PostgresConnection(**cfg['database'])
     if not utils.create_functions(conn):
         raise BaseException(
@@ -66,7 +67,7 @@ def get_tile_list(cfg: Mapping, tiles: List) -> List:
     return tile_list
 
 
-def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List,
+def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: List[str],
                               zip: bool = False, prefix_file: str = None,
                               features: bool = False) -> Mapping:
     failed = []
@@ -119,7 +120,8 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
                     "failed": "all"}
     else:
         suffix = ".city.json"
-    with ProcessPoolExecutor(max_workers=jobs) as executor:
+    mp_context = multiprocessing.get_context('spawn')
+    with ProcessPoolExecutor(max_workers=jobs, mp_context=mp_context) as executor:
         for tile in tile_list:
             filepath = (path / f"{prefix_file}{tile}").with_suffix((suffix))
             futures.append(executor.submit(export, tile, filepath,
@@ -139,6 +141,7 @@ def export_tiles_multiprocess(cfg: Mapping, jobs: int, path: Path, tile_list: Li
                     failed.extend(filepath)
                 else:
                     failed.append(filepath.stem)
+        executor.shutdown(wait=True)
         log.info(
             f"Done. Exported {len(tile_list) - len(failed)} tiles. "
             f"Failed {len(failed)} tiles: {failed}")
@@ -157,7 +160,7 @@ def export(tile, filepath, cfg, zip: bool = False, features: bool = False):
         strict_tile_query = True if features else False
         dbexport = query(conn_cfg=cfg["database"], tile_index=cfg["tile_index"],
                          cityobject_type=cfg["cityobject_type"], threads=1,
-                         tile_list=(tile,), strict_tile_query=strict_tile_query)
+                         tile_list=[tile,], strict_tile_query=strict_tile_query)
     except BaseException as e:
         log.error(f"Failed to export tile {str(tile)}\n{e}")
         return False, filepath
@@ -370,7 +373,7 @@ def record_to_surfaces(geomtype: str, boundary: Sequence,
 
 
 def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
-          threads=None, tile_list=None, bbox=None, extent=None,
+          threads=None, tile_list: List[str]=None, bbox=None, extent=None,
           strict_tile_query=False):
     """Export a table from PostgreSQL. Multithreading, with connection pooling.
     """
@@ -461,7 +464,8 @@ def query(conn_cfg: Mapping, tile_index: Mapping, cityobject_type: Mapping,
         raise ValueError(f"Number of threads must be greater than 0.")
 
 
-def build_query(conn: pgutils.PostgresConnection, features: pgutils.Schema, tile_index: pgutils.Schema, tile_list=None,
+def build_query(conn: pgutils.PostgresConnection, features: pgutils.Schema,
+                tile_index: pgutils.Schema, tile_list: List[str] = None,
                 bbox=None, extent=None, strict_tile_query=False):
     """Build an SQL query for extracting CityObjects from a single table.
 
@@ -475,7 +479,8 @@ def build_query(conn: pgutils.PostgresConnection, features: pgutils.Schema, tile
     # Set EPSG
     epsg = 7415
     # Exclude columns from the selection
-    table_fields = conn.get_fields(pgutils.PostgresTableIdentifier(features.schema,features.table))
+    table_fields = conn.get_fields(
+        pgutils.PostgresTableIdentifier(features.schema, features.table))
     if 'exclude' in features.field._Schema__data:
         exclude = [str(f) for f in features.field.exclude if f is not None]
     else:
@@ -596,19 +601,22 @@ def query_bbox(
         sql.SQL("SELECT {pk} pk,").format(**query_params),
         sql_cast_geometry(features),
         sql.SQL("FROM {tbl}").format(**query_params),
-        sql.SQL("WHERE ST_3DIntersects({geometry_0}, ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg}))").format(**query_params),
+        sql.SQL(
+            "WHERE ST_3DIntersects({geometry_0}, ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg}))").format(
+            **query_params),
         sql.SQL(")")
     ])
 
     sql_where_attr_intersects_empty = sql.SQL(
-    """
-    WHERE ST_3DIntersects(
-        a.{geometry_0},
-        ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
-        )
-    """
+        """
+        WHERE ST_3DIntersects(
+            a.{geometry_0},
+            ST_MakeEnvelope({xmin}, {ymin}, {xmax}, {ymax}, {epsg})
+            )
+        """
     )
-    sql_where_attr_intersects = pgutils.inject_parameters(sql_where_attr_intersects_empty, query_params)
+    sql_where_attr_intersects = pgutils.inject_parameters(
+        sql_where_attr_intersects_empty, query_params)
 
     sql_extent = sql.Composed("")
 
@@ -643,7 +651,8 @@ def query_extent(features: pgutils.Schema, ewkt: str) -> Tuple[sql.Composed, ...
         )
     """
     )
-    sql_where_attr_intersects = pgutils.inject_parameters(sql_where_attr_intersects_empty, query_params)
+    sql_where_attr_intersects = pgutils.inject_parameters(
+        sql_where_attr_intersects_empty, query_params)
 
     sql_extent = sql.Composed("")
 
@@ -651,7 +660,7 @@ def query_extent(features: pgutils.Schema, ewkt: str) -> Tuple[sql.Composed, ...
 
 
 def query_tiles_in_list(features: pgutils.Schema, tile_index: pgutils.Schema,
-                        tile_list: Sequence[str], with_intersection: bool = True,
+                        tile_list: List[str], with_intersection: bool = True,
                         strict=False) -> Tuple[sql.Composed, ...]:
     """Build a subquery of the geometry in the tile list.
     :param strict: If true, create a 1-to-1 mapping of feature-tile. If false, create a
@@ -695,26 +704,27 @@ def query_tiles_in_list(features: pgutils.Schema, tile_index: pgutils.Schema,
     if with_intersection:
         if strict:
             sql_extent_empty = sql.SQL(
-            """
-            extent AS (
-                SELECT ST_Union({tx_geom}) AS geom, ST_Union({tx_geom_sw}) AS geom_sw
-                FROM {tile_index}
-                WHERE {tx_pk} = ANY( {tile_list} ) ),
-            """
+                """
+                extent AS (
+                    SELECT ST_Union({tx_geom}) AS geom, ST_Union({tx_geom_sw}) AS geom_sw
+                    FROM {tile_index}
+                    WHERE {tx_pk} = ANY( {tile_list} ) ),
+                """
             )
             sql_extent = pgutils.inject_parameters(sql_extent_empty, query_params)
 
             sql_geom_in_extent_empty = sql.SQL(
-            """
-            geom_in_extent AS (
-                SELECT a.*
-                FROM {tbl} a,
-                     extent t
-                WHERE ST_ContainsProperly(t.geom, ST_Centroid(a.{tbl_geom}))
-                   OR ST_3DIntersects(t.geom_sw, ST_Centroid(a.{tbl_geom})))
-            """
+                """
+                geom_in_extent AS (
+                    SELECT a.*
+                    FROM {tbl} a,
+                         extent t
+                    WHERE ST_ContainsProperly(t.geom, ST_Centroid(a.{tbl_geom}))
+                       OR ST_3DIntersects(t.geom_sw, ST_Centroid(a.{tbl_geom})))
+                """
             )
-            sql_geom_in_extent = pgutils.inject_parameters(sql_geom_in_extent_empty, query_params)
+            sql_geom_in_extent = pgutils.inject_parameters(sql_geom_in_extent_empty,
+                                                           query_params)
             sql_polygon = sql.SQL(",").join([sql_geom_in_extent, sql_polygons])
 
             sql_where_attr_intersects_empty = sql.SQL(
@@ -723,26 +733,27 @@ def query_tiles_in_list(features: pgutils.Schema, tile_index: pgutils.Schema,
                          OR ST_3DIntersects(t.geom_sw, ST_Centroid(a.{tbl_geom}))
             """
             )
-            sql_where_attr_intersects = pgutils.inject_parameters(sql_where_attr_intersects_empty, query_params)
+            sql_where_attr_intersects = pgutils.inject_parameters(
+                sql_where_attr_intersects_empty, query_params)
         else:
             sql_extent_empty = sql.SQL(
-            """
-            extent AS (
-                SELECT ST_Union({tx_geom}) geom
-                FROM {tile_index}
-                WHERE {tx_pk} = ANY( {tile_list} ) ),
-            """
+                """
+                extent AS (
+                    SELECT ST_Union({tx_geom}) geom
+                    FROM {tile_index}
+                    WHERE {tx_pk} = ANY( {tile_list} ) ),
+                """
             )
             sql_extent = pgutils.inject_parameters(sql_extent_empty, query_params)
 
             sql_geom_in_extent_empty = sql.SQL(
-            """
-            geom_in_extent AS (
-                SELECT a.*
-                FROM {tbl} a,
-                     extent t
-                WHERE ST_3DIntersects(t.geom, a.{tbl_geom}))
-            """
+                """
+                geom_in_extent AS (
+                    SELECT a.*
+                    FROM {tbl} a,
+                         extent t
+                    WHERE ST_3DIntersects(t.geom, a.{tbl_geom}))
+                """
             )
             sql_geom_in_extent = pgutils.inject_parameters(sql_geom_in_extent_empty,
                                                            query_params)
@@ -753,7 +764,8 @@ def query_tiles_in_list(features: pgutils.Schema, tile_index: pgutils.Schema,
             ,extent t WHERE ST_3DIntersects(t.geom, a.{tbl_geom})
             """
             )
-            sql_where_attr_intersects = pgutils.inject_parameters(sql_where_attr_intersects_empty, query_params)
+            sql_where_attr_intersects = pgutils.inject_parameters(
+                sql_where_attr_intersects_empty, query_params)
     else:
         sql_polygon = sql.SQL(" ").join([
             sql.SQL("polygons AS"),
@@ -768,14 +780,16 @@ def query_tiles_in_list(features: pgutils.Schema, tile_index: pgutils.Schema,
         sql_where_attr_intersects_empty = sql.SQL("""
         WHERE {tbl_tile} = ANY( {tile_list} )
         """)
-        sql_where_attr_intersects = pgutils.inject_parameters(sql_where_attr_intersects_empty, query_params)
+        sql_where_attr_intersects = pgutils.inject_parameters(
+            sql_where_attr_intersects_empty, query_params)
 
         sql_extent = sql.Composed("")
 
     return sql_polygon, sql_where_attr_intersects, sql_extent
 
 
-def with_list(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema, tile_list: Tuple[str]) -> List[str]:
+def with_list(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema,
+              tile_list: List[str]) -> List[str]:
     """Select tiles based on a list of tile IDs."""
     if "all" == tile_list[0].lower():
         log.info("Getting all tiles from the index.")
@@ -790,12 +804,10 @@ def with_list(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema, tile
 
 
 def tiles_in_index(
-        conn: pgutils.PostgresConnection, tile_index: pgutils.Schema, tile_list: Tuple[str]
-) -> Tuple[List[str], List[str]]:
+        conn: pgutils.PostgresConnection, tile_index: pgutils.Schema,
+        tile_list: List[str]
+) -> List[List[str]]:
     """Return the tile IDs that are present in the tile index."""
-    if not isinstance(tile_list, tuple):
-        log.debug(f"tile_list was not a tuple, casted to tuple {tile_list}")
-
     query_params = {
         "tiles": tile_list,
         "index_": tile_index.schema + tile_index.table,
@@ -805,7 +817,7 @@ def tiles_in_index(
         """
         SELECT DISTINCT {tile}
         FROM {index_}
-        WHERE {tile} = ANY( {tiles} )
+        WHERE {tile} = ANY ( {tiles} )
         """
     )
     query = pgutils.inject_parameters(query_empty, query_params)
@@ -821,7 +833,8 @@ def tiles_in_index(
     return in_index
 
 
-def all_in_index(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema) -> List[str]:
+def all_in_index(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema) -> List[
+    str]:
     """Get all tile IDs from the tile index."""
     query_params = {
         "index_": tile_index.schema + tile_index.table,

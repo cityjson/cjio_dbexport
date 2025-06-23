@@ -8,7 +8,9 @@ import json
 import pytest
 
 import cjio_dbexport.utils
-from cjio_dbexport import db3dnl, db, utils, cli
+from cjio_dbexport import db3dnl, utils, cli
+
+import pgutils
 
 log = logging.getLogger(__name__)
 
@@ -28,8 +30,9 @@ class TestParsing:
         print(msurface)
 
     def test_build_query_all(self, db3dnl_db, cfg_db3dnl, caplog):
-        features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
-        tile_index = db.Schema(cfg_db3dnl['tile_index'])
+        caplog.set_level(logging.DEBUG)
+        features = pgutils.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
+        tile_index = pgutils.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
                                    tile_index=tile_index)
         query_str = db3dnl_db.print_query(query)
@@ -37,8 +40,9 @@ class TestParsing:
         assert 'Exporting the whole database' in caplog.text
 
     def test_build_query_bbox(self, db3dnl_db, cfg_db3dnl, caplog):
-        features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
-        tile_index = db.Schema(cfg_db3dnl['tile_index'])
+        caplog.set_level(logging.DEBUG)
+        features = pgutils.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
+        tile_index = pgutils.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
                                    tile_index=tile_index,
                                    bbox=[82530.68, 446820.40, 84257.09, 448794.26])
@@ -48,8 +52,9 @@ class TestParsing:
 
     def test_build_query_extent(self, db3dnl_db, cfg_db3dnl, db3dnl_poly,
                                 caplog):
-        features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
-        tile_index = db.Schema(cfg_db3dnl['tile_index'])
+        caplog.set_level(logging.DEBUG)
+        features = pgutils.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
+        tile_index = pgutils.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
                                    tile_index=tile_index, extent=db3dnl_poly)
         query_str = db3dnl_db.print_query(query)
@@ -57,22 +62,22 @@ class TestParsing:
         assert 'Exporting with polygon' in caplog.text
 
     def test_build_query_tiles(self, db3dnl_db, cfg_db3dnl, caplog):
-        features = db.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
-        tile_index = db.Schema(cfg_db3dnl['tile_index'])
+        caplog.set_level(logging.DEBUG)
+        features = pgutils.Schema(cfg_db3dnl['cityobject_type']['LandUse'][0])
+        tile_index = pgutils.Schema(cfg_db3dnl['tile_index'])
         query = db3dnl.build_query(conn=db3dnl_db, features=features,
-                                   tile_index=tile_index, tile_list=('ci1',))
+                                   tile_index=tile_index, tile_list=['ci1',])
         query_str = db3dnl_db.print_query(query)
         assert '"xml"' not in query_str and '"identificatie"' in query_str
         assert 'Exporting with a list of tiles' in caplog.text
 
 
-# @pytest.mark.db3dnl
+@pytest.mark.db3dnl
 class TestIntegration:
     """Integration tests"""
 
     @pytest.mark.skip
-    def test_export_all(self, data_dir, cfg_db3dnl, db3dnl_db, caplog):
-        caplog.set_level(logging.DEBUG)
+    def test_export_all(self, data_dir, cfg_db3dnl, db3dnl_db):
         export_gen = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                   tile_index=cfg_db3dnl['tile_index'],
                                   cityobject_type=cfg_db3dnl[
@@ -147,8 +152,7 @@ class TestIntegration:
                                       'cityobject_type'], tile_list=['ci1', ])
         dbexport = list(export_gen)
 
-    def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl, caplog):
-        caplog.set_level(logging.DEBUG)
+    def test_convert(self, data_dir, db3dnl_4tiles_pickle, cfg_db3dnl):
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
                                 cityobject_type=cfg_db3dnl[
@@ -164,10 +168,9 @@ class TestIntegration:
         with open(data_dir / '4tiles_cm.pickle', 'wb') as fo:
             pickle.dump(cm, fo)
 
-    def test_export_convert_save(self, data_dir, cfg_db3dnl, db3dnl_db, caplog,
+    def test_export_convert_save(self, data_dir, cfg_db3dnl, db3dnl_db,
                                  data_output_dir):
         """Does the .convert method work and can we save a CityJSON file?"""
-        caplog.set_level(logging.DEBUG)
         dbexport = db3dnl.query(conn_cfg=cfg_db3dnl['database'],
                                 tile_index=cfg_db3dnl['tile_index'],
                                 cityobject_type=cfg_db3dnl[
@@ -218,10 +221,9 @@ class TestIntegration:
     #     dir = str(data_dir)
     #     tiles = ('1', '2')
 
-    def test_export_features(self, data_dir, cfg_db3dnl, db3dnl_db, caplog,
+    def test_export_features(self, data_dir, cfg_db3dnl, db3dnl_db, capfd,
                              data_output_dir):
         """Does the .convert method work and can we save a CityJSON file?"""
-        caplog.set_level(logging.DEBUG)
         outfile = data_output_dir / "ci1_features.city.jsonl"
         db3dnl.export(tile="ci1", filepath=outfile, cfg=cfg_db3dnl, zip=False,
                       features=True)
@@ -231,9 +233,9 @@ class TestIntegration:
                                                 data_output_dir):
         """Test when the tile_index ID is an integer in the database, not a
         string AND the tiles are a list, not a tuple."""
-        tile_index = db.Schema(cfg_db3dnl['tile_index'])
+        tile_index = pgutils.Schema(cfg_db3dnl['tile_index'])
         tile_list = db3dnl.with_list(conn=db3dnl_db, tile_index=tile_index,
-                                     tile_list=('all',))
+                                     tile_list=['all',])
 
         db3dnl.export_tiles_multiprocess(cfg=cfg_db3dnl, jobs=4,
                                          path=data_output_dir, tile_list=tile_list,
@@ -243,8 +245,7 @@ class TestIntegration:
         good = db3dnl.index_geometry_centroid(db3dnl_db, cfg_db3dnl)
 
 class TestLoD2:
-    def test_export_lod2(self, cfg_lod2, caplog):
-        caplog.set_level(logging.DEBUG)
+    def test_export_lod2(self, cfg_lod2):
         dbexport = db3dnl.query(conn_cfg=cfg_lod2['database'],
                                 tile_index=cfg_lod2['tile_index'],
                                 cityobject_type=cfg_lod2['cityobject_type'],

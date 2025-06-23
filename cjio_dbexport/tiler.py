@@ -36,8 +36,8 @@ from cjio_dbexport import db
 log = logging.getLogger(__name__)
 
 
-def create_temp_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.Identifier) -> bool:
-    """Creates a temp table in Postgres for storing the tile index extent.
+def create_extent_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.Identifier) -> bool:
+    """Creates a table in Postgres for storing the tile index extent.
     :returns: True on success
     """
     srid = str(srid)
@@ -45,11 +45,11 @@ def create_temp_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.I
         raise ValueError(f"SRID={srid} is not valid. Set it in the configuration "
                          f" file at tile_index.srid")
     query_params = {
-        'temp_name': extent,
+        'extent_name': extent,
         'srid': srid
     }
     query_empty = sql.SQL("""
-        CREATE TEMPORARY TABLE {temp_name}(
+        CREATE TABLE {extent_name} (
             gid serial PRIMARY KEY,  
             geom geometry(POLYGON, {srid})
         );
@@ -64,7 +64,7 @@ def create_temp_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.I
     return True
 
 def create_tx_table(conn: pgutils.PostgresConnection, tile_index, srid, drop=False) -> bool:
-    """Creates a temp table in Postgres for storing the tile index extent.
+    """Creates an extent table in Postgres for storing the tile index extent.
     :returns: True on success
     """
     srid = str(srid)
@@ -112,7 +112,7 @@ def create_tx_table(conn: pgutils.PostgresConnection, tile_index, srid, drop=Fal
         return False
     return True
 
-def insert_ewkt(conn, temp_table: sql.Identifier, ewkt: str) -> bool:
+def insert_ewkt(conn, extent_table: sql.Identifier, ewkt: str) -> bool:
     """Insert an EKWT representation of a polygon into PostGIS.
     :returns: True on success
     """
@@ -120,7 +120,7 @@ def insert_ewkt(conn, temp_table: sql.Identifier, ewkt: str) -> bool:
         INSERT INTO {extent} (geom) VALUES (ST_GeomFromEWKT({ewkt}));"""
     )
     query = pgutils.inject_parameters(query_empty, params={
-        "extent": temp_table, "ewkt" : ewkt
+        "extent": extent_table, "ewkt" : ewkt
     })
     try:
         conn.send_query(query)

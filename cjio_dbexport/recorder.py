@@ -24,12 +24,16 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import logging
+import multiprocessing
 
 def configure_logging(loglevel, logfile):
     """Configures the general logging in the application"""
     numeric_level = getattr(logging, loglevel.upper(), None)
     if not isinstance(numeric_level, int):
         raise ValueError('Invalid log level: %s' % loglevel)
+    if multiprocessing.current_process().name != 'MainProcess':
+        # Worker processes should not configure root logger
+        return
     logging.basicConfig(
         filename=logfile,
         filemode='w',

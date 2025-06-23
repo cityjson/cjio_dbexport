@@ -7,17 +7,24 @@ import pytest
 
 log = logging.getLogger(__name__)
 
-@pytest.mark.cjdb
+
 class TestTiler:
-    def test_create_temp_table(self, cjdb_db):
-        cfg = {'tile_index': {'srid': 7415}}
-        assert tiler.create_temp_table(conn=cjdb_db,
-                                       srid=7415,
-                                       extent=sql.Identifier('extent'))
-        res = cjdb_db.get_query("select * from extent;")
+    @pytest.fixture(scope="class", autouse=True)
+    def setup_teardown(request, db3dnl_db):
+        db3dnl_db.send_query("CREATE SCHEMA IF NOT EXISTS temp;")
+
+        yield
+
+        db3dnl_db.send_query("DROP SCHEMA IF EXISTS temp CASCADE;")
+
+    def test_create_extent_table(self, db3dnl_db):
+        assert tiler.create_extent_table(conn=db3dnl_db,
+                                         srid=7415,
+                                         extent=sql.Identifier('temp', 'extent'))
+        res = db3dnl_db.get_query("select * from temp.extent;")
         log.info(res)
 
-    def test_insert_ewkt(self, cjdb_db):
+    def test_insert_ewkt(self, db3dnl_db):
         ewkt = 'SRID=7415;POLYGON((0.0 0.0, 1.0 1.0, 1.0 0.0, 0.0 0.0))'
-        temp_table = sql.Identifier('test_data', 'extent')
-        assert tiler.insert_ewkt(conn=cjdb_db, temp_table=temp_table, ewkt=ewkt)
+        extent_table = sql.Identifier('temp', 'extent')
+        assert tiler.insert_ewkt(conn=db3dnl_db, extent_table=extent_table, ewkt=ewkt)

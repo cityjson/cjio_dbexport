@@ -127,7 +127,7 @@ def export_all_cmd(ctx, filename):
 @click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, zip, jobs, features, dir):
+def export_tiles_cmd(ctx, tiles: tuple[str, ...], merge: bool, zip: bool, jobs: int, features: bool, dir: str):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
@@ -143,7 +143,10 @@ def export_tiles_cmd(ctx, tiles, merge, zip, jobs, features, dir):
     """
     path = Path(dir).resolve()
     path.mkdir(parents=True, exist_ok=True)
-    tile_list = db3dnl.get_tile_list(ctx.obj["cfg"], tiles)
+    # Need to have a list instead of a tuple, because psycopg's Postgres array adaptor
+    #  works with lists, but not with tuples.
+    tiles_list = list(tiles)
+    tile_list = db3dnl.get_tile_list(ctx.obj["cfg"], tiles_list)
 
     if merge:
         filepath = (path / 'merged').with_suffix('.json')
@@ -294,22 +297,22 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             log.debug(f"PostGIS version={pgversion}")
         # Upload the extent to a temporary table
         extent_tbl = sql.Identifier('extent')
-        good = tiler.create_temp_table(conn=conn,
-                                       srid=ctx.obj['cfg']['tile_index']['srid'],
-                                       extent=extent_tbl)
+        good = tiler.create_extent_table(conn=conn,
+                                         srid=ctx.obj['cfg']['tile_index']['srid'],
+                                         extent=extent_tbl)
         if not good:
-            raise click.ClickException(f"Could not create TEMPORARY TABLE for "
+            raise click.ClickException(f"Could not create TABLE for "
                                        f"the extent. Check the logs for "
                                        f"details.")
         extent_ewkt = utils.polygon_to_ewkt(polygon=polygon,
                                             srid=ctx.obj['cfg']['tile_index']['srid'])
-        good = tiler.insert_ewkt(conn=conn, temp_table=extent_tbl, ewkt=extent_ewkt)
+        good = tiler.insert_ewkt(conn=conn, extent_table=extent_tbl, ewkt=extent_ewkt)
         if not good:
             raise click.ClickException(f"Could not insert the extent into the "
                                        f" 'extent' temporary table. Check the "
                                        f"logs for details.")
         # Create tile_index table
-        table = (tile_index.schema + tile_index.table).as_string(conn.conn)
+        table = (tile_index.schema + tile_index.table).as_string(conn)
         good = tiler.create_tx_table(conn, tile_index=tile_index,
                                      srid=ctx.obj['cfg']['tile_index']['srid'],
                                      drop=drop)

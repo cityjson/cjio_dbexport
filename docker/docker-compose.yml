@@ -1,18 +1,19 @@
 name: cjio_dbexport
 
 services:
-  postgis_10_25:
-    image: postgis/postgis:10-2.5-alpine
-    ports:
-    - "5557:5432"
-    env_file:
-      - postgis.env
-    volumes:
-      - postgis_10_25-data:/var/lib/postgresql/data/
-      - "./_init_db3dnl.sql:/docker-entrypoint-initdb.d/_init_db3dnl.sql:ro"
-      - "./Kadaster3DBVDB/:/docker-entrypoint-initdb.d/"
-    networks:
-      - cjdb-network
+#  postgis_10_25:
+#    image: postgis/postgis:10-2.5-alpine
+#    ports:
+#    - "5557:5432"
+#    env_file:
+#      - postgis.env
+#    volumes:
+#      - postgis_10_25-data:/var/lib/postgresql/data/
+#      - "./_init_db3dnl.sql:/docker-entrypoint-initdb.d/_init_db3dnl.sql:ro"
+##      - "./Kadaster3DBVDB/:/docker-entrypoint-initdb.d/"
+#      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
+#    networks:
+#      - cjdb-network
   postgis_17_35:
     image: postgis/postgis:17-3.5-alpine
     ports:
@@ -22,12 +23,12 @@ services:
     volumes:
       - postgis_17_35-data:/var/lib/postgresql/data/
       - "./_init_db3dnl.sql:/docker-entrypoint-initdb.d/_init_db3dnl.sql:ro"
-      - "./Kadaster3DBVDB/:/docker-entrypoint-initdb.d/"
-#      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
+#      - "./Kadaster3DBVDB/:/docker-entrypoint-initdb.d/"
+      - "./db3dnl_sample.sql.gz:/docker-entrypoint-initdb.d/db3dnl_sample.sql.gz:ro"
     networks:
       - cjdb-network
 volumes:
-  postgis_10_25-data:
+#  postgis_10_25-data:
   postgis_17_35-data:
 networks:
   cjdb-network:
