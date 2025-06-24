@@ -165,13 +165,12 @@ def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema) -
     """Create a GiST index on the tile index polygons."""
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'geometry': tile_index.field.geometry.id
+        'geometry': tile_index.field.geometry.id,
+        'name': pgutils.PostgresIdentifier(f"{tile_index.table}_geom_idx")
     }
     query_empty = sql.SQL("""
-    CREATE INDEX IF NOT EXISTS geom_idx ON
-    {table}
-        USING gist ({geometry});
-    """).format(**query_params)
+    CREATE INDEX IF NOT EXISTS {name} ON {table} USING gist ({geometry});
+    """)
     query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
@@ -181,12 +180,13 @@ def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema) -
         return False
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary
+        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary,
+        'name': pgutils.PostgresIdentifier(f"{tile_index.table}_geom_sw_boundary_idx")
     }
     query_empty = sql.SQL("""
-    CREATE INDEX IF NOT EXISTS geom_sw_boundary_idx ON
+    CREATE INDEX IF NOT EXISTS {name} ON
     {table}
-        USING gist ({geometry_sw_boundary});
+    USING gist ({geometry_sw_boundary});
     """)
     query = pgutils.inject_parameters(query_empty, query_params)
     try:

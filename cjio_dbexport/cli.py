@@ -296,7 +296,7 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
         else:
             log.debug(f"PostGIS version={pgversion}")
         # Upload the extent to a temporary table
-        extent_tbl = sql.Identifier('extent')
+        extent_tbl = sql.Identifier('cjio_dbexport_extent')
         good = tiler.create_extent_table(conn=conn,
                                          srid=ctx.obj['cfg']['tile_index']['srid'],
                                          extent=extent_tbl)
@@ -309,10 +309,10 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
         good = tiler.insert_ewkt(conn=conn, extent_table=extent_tbl, ewkt=extent_ewkt)
         if not good:
             raise click.ClickException(f"Could not insert the extent into the "
-                                       f" 'extent' temporary table. Check the "
+                                       f" 'cijo_dbexport_extent' table. Check the "
                                        f"logs for details.")
         # Create tile_index table
-        table = (tile_index.schema + tile_index.table).as_string(conn)
+        table = (tile_index.schema + tile_index.table).as_string()
         good = tiler.create_tx_table(conn, tile_index=tile_index,
                                      srid=ctx.obj['cfg']['tile_index']['srid'],
                                      drop=drop)
@@ -320,8 +320,8 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             click.echo(f"Created {table} in {conn.dbname}")
         else:
             raise click.ClickException(
-                f"Could not create {tile_index.schema.string}."
-                f"{tile_index.table.string} in {conn.dbname}. Check the logs for "
+                f"Could not create {tile_index.schema}."
+                f"{tile_index.table} in {conn.dbname}. Check the logs for "
                 f"details.")
         
         # Upload the tile_index to the database
@@ -337,7 +337,7 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             try:
                 with conn.connect() as connection:
                     with connection.cursor() as cur:
-                        query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}, {tile_index.field.geometry_sw_boundary.string}) FROM STDIN WITH DELIMITER '\t'"
+                        query = f"COPY {table} ({tile_index.field.pk}, {tile_index.field.geometry}, {tile_index.field.geometry_sw_boundary}) FROM STDIN WITH DELIMITER '\t'"
                         log.debug(query)
                         with cur.copy(query) as copy:
                             while data := values.read():

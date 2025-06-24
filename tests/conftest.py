@@ -3,7 +3,6 @@
 """pytest configuration"""
 
 
-import pickle
 from pathlib import Path
 
 import pgutils
@@ -175,9 +174,7 @@ def cfg_cjdb(cfg_cjdb_path):
         c = configure.parse_configuration(fo)
         yield c
 
-# @pytest.fixture(scope='function')
-# def cjdb_db(cfg_cjdb):
-#     # TODO: needs database setup
-#     conn = db.Db(**cfg_cjdb['database'])
-#     yield conn
-#     conn.close()
+@pytest.fixture(scope='function')
+def cjdb_db(cfg_cjdb):
+    conn = pgutils.PostgresConnection(**cfg_cjdb['database'])
+    yield conn

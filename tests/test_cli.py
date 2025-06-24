@@ -103,8 +103,10 @@ class TestDb3DNLIntegration:
             log.exception(export_result.exception)
             pytest.fail()
 
-    def test_index(self, db3dnl_poly_geojson, cfg_cjdb_path, caplog):
+    def test_index(self, db3dnl_poly_geojson, cfg_cjdb_path, cjdb_db, caplog):
         """Test the CLI."""
+        cjdb_db.send_query("drop table if exists cjio_dbexport_extent cascade;")
+        cjdb_db.send_query("drop table if exists tile_index.tile_index_tmp cascade;")
         runner = CliRunner()
         export_result = runner.invoke(cli.main, [
             str(cfg_cjdb_path),
