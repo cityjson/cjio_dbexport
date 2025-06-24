@@ -34,7 +34,6 @@ jobs:
           pyinstaller --name cjdb --onefile cjio_dbexport/cli.py --distpath $GITHUB_WORKSPACE/dist
           sleep 1
           ls -l $GITHUB_WORKSPACE/dist
-          $GITHUB_WORKSPACE/dist/cjdb.exe
           $GITHUB_WORKSPACE/dist/cjdb.exe --version
       - name: 7zip
         run: |
