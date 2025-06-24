@@ -2,6 +2,16 @@
 Changelog
 ==========
 
+0.9.3 (2025-06-24)
+------------------
+
+Changes
+*******
+* Update to psycopg3 and update all other dependencies
+* Replace the db module with pgutils
+* Migrate to pyproject.toml setup
+* Testing with postgres 17, python 12
+
 0.9.2 (2023-06-21)
 ------------------
 
