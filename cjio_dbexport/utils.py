@@ -32,7 +32,81 @@ import zipfile, gzip
 from platform import platform
 from pathlib import Path
 
+import pgutils
+from psycopg.errors import Error as pgError
+from psycopg import sql
+
 log = logging.getLogger(__name__)
+
+
+def create_functions(conn: pgutils.PostgresConnection) -> bool:
+    """Create the required functions in PostgreSQL.
+
+    ``cjdb_multipolygon_to_multisurface()``
+
+        Parse the PostGIS geometry representation into
+        a CityJSON-like geometry array representation. Here I use
+        several subqueries for sequentially aggregating the vertices,
+        rings and surfaces. I also tested the aggregation with window
+        function calls, but this approach tends to be at least twice
+        as expensive then the subquery-aggregation.
+        In the expand_point subquery, the first vertex is skipped,
+        because PostGIS uses Simple Features so the first vertex is
+        duplicated at the end.
+    """
+    mpoly_to_msrf = sql.SQL("""
+                            CREATE OR REPLACE
+                                FUNCTION cjdb_multipolygon_to_multisurface(
+                                multipolygon geometry
+                            ) RETURNS FLOAT8[] AS
+                            $$
+                            WITH polygons
+                                AS (SELECT ST_DumpPoints(multipolygon) geom)
+                               , expand_points AS (SELECT (geom).PATH[1] exterior
+                                                        , (geom).PATH[2] interior
+                                                        , (geom).PATH[3] vertex
+                                                        , ARRAY [ST_X((geom).geom)
+                                    , ST_Y((geom).geom)
+                                    , ST_Z((geom).geom)]                 point
+                                                   FROM polygons
+                                                   WHERE (geom).PATH[3] > 1
+                                                   ORDER BY exterior
+                                                          , interior
+                                                          , vertex)
+                               , rings AS (SELECT exterior
+                                                , interior
+                                                , ARRAY_AGG(point) geom
+                                           FROM expand_points
+                                           GROUP BY interior
+                                                  , exterior
+                                           ORDER BY exterior
+                                                  , interior)
+                               , surfaces AS (SELECT ARRAY_AGG(geom) geom
+                                              FROM rings
+                                              GROUP BY exterior
+                                              ORDER BY exterior)
+                            SELECT ARRAY_AGG(geom) geom
+                            FROM surfaces;
+                            $$ LANGUAGE SQL;
+
+                            COMMENT ON
+                                FUNCTION cjdb_multipolygon_to_multisurface(
+                                IN multipolygon geometry
+                                ) IS 'Cast a PostGIS MultiPolygon geometry into a CityJSON MultiSurface 
+    geometry array representation.';
+                            """)
+    success = []
+    try:
+        conn.send_query(mpoly_to_msrf)
+        log.info("Created PostgreSQL FUNCTION "
+                 "cjdb_multipolygon_to_multisurface()")
+        success.append(True)
+    except pgError as e:
+        log.exception(f"Error creating PostgreSQL FUNCTION "
+                      f"cjdb_multipolygon_to_multisurface()\n{e}")
+        success.append(False)
+    return all(success)
+
 
 def create_rectangle_grid(bbox: Iterable[float], hspacing: float,
                           vspacing: float) -> Iterable:

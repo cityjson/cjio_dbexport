@@ -1,0 +1,80 @@
+[build-system]
+requires = ["setuptools>=61.0", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "cjio_dbexport"
+version = "0.9.3"
+description = "Export tool from PostGIS to CityJSON"
+readme = {file = "README.rst", content-type = "text/x-rst"}
+authors = [
+    {name = "Balázs Dukai", email = "balazs.dukai@3dgi.nl"}
+]
+license = {text = "MIT license"}
+classifiers = [
+    "Development Status :: 4 - Beta",
+    "Intended Audience :: Developers",
+    "Natural Language :: English",
+    "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.12",
+]
+keywords = ["cjio_dbexport"]
+requires-python = ">=3.12"
+dependencies = [
+    "Click>=8.2.1",
+    "psycopg[binary,pool]>=3.2.9",
+    "PyYAML>=6.0.2",
+    "cjio==0.9.0",
+    "pgutils @ git+https://github.com/balazsdukai/pgutils.git@2025.1014#egg=pgutils",
+]
+
+[project.urls]
+"Source" = "https://github.com/cityjson/cjio_dbexport"
+
+[project.scripts]
+cjdb = "cjio_dbexport.cli:main"
+
+[project.optional-dependencies]
+dev = [
+    "pip>=25.1.1",
+    "bumpver==2024.1130",
+    "wheel==0.45.1",
+    "watchdog==6.0.0",
+    "flake8==7.2.0",
+    "tox==4.27.0",
+    "coverage==7.9.1",
+    "Sphinx==8.2.3",
+    "twine==6.1.0",
+    "Click==8.2.1",
+    "pytest==8.4.1",
+    "pytest-runner==6.0.1",
+    "pyinstaller==6.14.1",
+    "PyYAML==6.0.2",
+]
+
+[tool.setuptools]
+packages = ["cjio_dbexport"]
+include-package-data = true
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+markers = [
+    "db3dnl: mark a test for running against the 3DNL database",
+    "cjdb: mark a test for running against the cjdb_test database"
+]
+
+[tool.bumpver]
+current_version = "0.9.3"
+version_pattern = "MAJOR.MINOR.PATCH"
+commit_message = "bump version {old_version} -> {new_version}"
+commit = true
+tag = true
+push = false
+
+[tool.bumpver.file_patterns]
+"pyproject.toml" = [
+    'version = "{version}"',
+]
+"cjio_dbexport/__init__.py" = [
+    '__version__ = "{version}"'
+]

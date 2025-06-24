@@ -3,15 +3,15 @@ geometries:
   type: MultiSurface
 
 database:
-  dbname: cjdb_test
+  dbname: db3dnl
   host: localhost
-  port: 5432
+  port: 5558
   user: cjdb_tester
-  password: cjdb_test1234
+  password: cjdb_test
 
 tile_index:
   schema: tile_index
-  table: tile_index_1
+  table: tile_index_tmp
   srid: 7415
   field:
     pk: id

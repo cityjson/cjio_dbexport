@@ -8,16 +8,16 @@ semantics_mapping:
 database:
   dbname: db3dbag
   host: localhost
-  password: db3dbag_1234
-  port: 5560
-  user: db3dbag_user
+  password: cjdb_test
+  port: 5558
+  user: cjdb_tester
 
 tile_index:
   field:
     geometry: tile_polygon
     pk: tile_id
-  schema: tiles
-  table: bag_tiles
+  schema: tile_index
+  table: tile_index_sub
 
 cityobject_type:
   Building:

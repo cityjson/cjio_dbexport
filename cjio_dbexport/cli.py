@@ -32,13 +32,16 @@ from io import StringIO
 from multiprocessing import freeze_support
 import json
 
-from psycopg2 import Error as pgError
-from psycopg2 import sql
+import psycopg
+from psycopg.errors import Error as pgError
+from psycopg import sql
 import click
 from cjio import cityjson
 
+import pgutils
+
 import cjio_dbexport.utils
-from cjio_dbexport import recorder, configure, db, db3dnl, tiler, utils, __version__
+from cjio_dbexport import recorder, configure, db3dnl, tiler, utils, __version__
 
 
 def save(cm: cityjson.CityJSON, path: Path, indent=False):
@@ -94,8 +97,8 @@ def export_all_cmd(ctx, filename):
     path = Path(filename).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
-    conn = db.Db(**ctx.obj['cfg']['database'])
-    if not conn.create_functions():
+    conn = pgutils.PostgresConnection(**ctx.obj['cfg']['database'])
+    if not utils.create_functions(conn):
         raise click.exceptions.ClickException(
             "Could not create the required functions in PostgreSQL, "
             "check the logs for details")
@@ -111,8 +114,7 @@ def export_all_cmd(ctx, filename):
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
-    finally:
-        conn.close()
+
 
 @click.command('export_tiles')
 @click.option('--merge', is_flag=True,
@@ -125,7 +127,7 @@ def export_all_cmd(ctx, filename):
 @click.argument('tiles', nargs=-1, type=str)
 @click.argument('dir', type=str)
 @click.pass_context
-def export_tiles_cmd(ctx, tiles, merge, zip, jobs, features, dir):
+def export_tiles_cmd(ctx, tiles: tuple[str, ...], merge: bool, zip: bool, jobs: int, features: bool, dir: str):
     """Export the objects within the given tiles into a CityJSON file.
 
     TILES is a list of tile IDs from the tile_index, or 'all' which exports
@@ -141,7 +143,10 @@ def export_tiles_cmd(ctx, tiles, merge, zip, jobs, features, dir):
     """
     path = Path(dir).resolve()
     path.mkdir(parents=True, exist_ok=True)
-    tile_list = db3dnl.get_tile_list(ctx.obj["cfg"], tiles)
+    # Need to have a list instead of a tuple, because psycopg's Postgres array adaptor
+    #  works with lists, but not with tuples.
+    tiles_list = list(tiles)
+    tile_list = db3dnl.get_tile_list(ctx.obj["cfg"], tiles_list)
 
     if merge:
         filepath = (path / 'merged').with_suffix('.json')
@@ -182,8 +187,8 @@ def export_bbox_cmd(ctx, bbox, filename):
     path = Path(filename).resolve()
     if not Path(path.parent).exists():
         raise NotADirectoryError(f"Directory {path.parent} not exists")
-    conn = db.Db(**ctx.obj['cfg']['database'])
-    if not conn.create_functions():
+    conn = pgutils.PostgresConnection(**ctx.obj['cfg']['database'])
+    if not utils.create_functions(conn):
         raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting with BBOX={bbox}")
@@ -197,8 +202,6 @@ def export_bbox_cmd(ctx, bbox, filename):
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
-    finally:
-        conn.close()
 
 
 @click.command('export_extent')
@@ -218,8 +221,8 @@ def export_extent_cmd(ctx, extent, filename):
         raise NotADirectoryError(f"Directory {path.parent} not exists")
 
     polygon = cjio_dbexport.utils.read_geojson_polygon(extent)
-    conn = db.Db(**ctx.obj['cfg']['database'])
-    if not conn.create_functions():
+    conn = pgutils.PostgresConnection(**ctx.obj['cfg']['database'])
+    if not utils.create_functions(conn):
         raise click.exceptions.ClickException("Could not create the required functions in PostgreSQL, check the logs for details")
     try:
         click.echo(f"Exporting with polygonal selection. Polygon={extent.name}")
@@ -233,8 +236,6 @@ def export_extent_cmd(ctx, extent, filename):
         click.echo(f"Saved CityJSON to {path}")
     except Exception as e:
         raise click.exceptions.ClickException(e)
-    finally:
-        conn.close()
 
 
 @click.command('index')
@@ -285,9 +286,9 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
     # Create the IDs for the tiles
     quadtree_idx = utils.index_quadtree(grid)
     # Check if schema and table exists
-    conn = db.Db(**ctx.obj['cfg']['database'])
+    conn = pgutils.PostgresConnection(**ctx.obj['cfg']['database'])
     try:
-        tile_index = db.Schema(ctx.obj['cfg']['tile_index'])
+        tile_index = pgutils.Schema(ctx.obj['cfg']['tile_index'])
         pgversion = conn.check_postgis()
         if pgversion is None:
             raise click.ClickException(
@@ -295,23 +296,23 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
         else:
             log.debug(f"PostGIS version={pgversion}")
         # Upload the extent to a temporary table
-        extent_tbl = sql.Identifier('extent')
-        good = tiler.create_temp_table(conn=conn,
-                                       srid=ctx.obj['cfg']['tile_index']['srid'],
-                                       extent=extent_tbl)
+        extent_tbl = sql.Identifier('cjio_dbexport_extent')
+        good = tiler.create_extent_table(conn=conn,
+                                         srid=ctx.obj['cfg']['tile_index']['srid'],
+                                         extent=extent_tbl)
         if not good:
-            raise click.ClickException(f"Could not create TEMPORARY TABLE for "
+            raise click.ClickException(f"Could not create TABLE for "
                                        f"the extent. Check the logs for "
                                        f"details.")
         extent_ewkt = utils.polygon_to_ewkt(polygon=polygon,
                                             srid=ctx.obj['cfg']['tile_index']['srid'])
-        good = tiler.insert_ewkt(conn=conn, temp_table=extent_tbl, ewkt=extent_ewkt)
+        good = tiler.insert_ewkt(conn=conn, extent_table=extent_tbl, ewkt=extent_ewkt)
         if not good:
             raise click.ClickException(f"Could not insert the extent into the "
-                                       f" 'extent' temporary table. Check the "
+                                       f" 'cijo_dbexport_extent' table. Check the "
                                        f"logs for details.")
         # Create tile_index table
-        table = (tile_index.schema + tile_index.table).as_string(conn.conn)
+        table = (tile_index.schema + tile_index.table).as_string()
         good = tiler.create_tx_table(conn, tile_index=tile_index,
                                      srid=ctx.obj['cfg']['tile_index']['srid'],
                                      drop=drop)
@@ -319,8 +320,8 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             click.echo(f"Created {table} in {conn.dbname}")
         else:
             raise click.ClickException(
-                f"Could not create {tile_index.schema.string}."
-                f"{tile_index.table.string} in {conn.dbname}. Check the logs for "
+                f"Could not create {tile_index.schema}."
+                f"{tile_index.table} in {conn.dbname}. Check the logs for "
                 f"details.")
         
         # Upload the tile_index to the database
@@ -334,13 +335,13 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             values.write(f'{idx}\t{ewkt}\t{ewkt_sw}\n')
             values.seek(0)
             try:
-                with conn.conn:
-                    with conn.conn.cursor() as cur:
-                        query = f"COPY {table} ({tile_index.field.pk.string}, {tile_index.field.geometry.string}, {tile_index.field.geometry_sw_boundary.string}) FROM STDIN WITH DELIMITER '\t'"
+                with conn.connect() as connection:
+                    with connection.cursor() as cur:
+                        query = f"COPY {table} ({tile_index.field.pk}, {tile_index.field.geometry}, {tile_index.field.geometry_sw_boundary}) FROM STDIN WITH DELIMITER '\t'"
                         log.debug(query)
-                        cur.copy_expert(
-                            sql=query,
-                            file=values)
+                        with cur.copy(query) as copy:
+                            while data := values.read():
+                                copy.write(data)
                 log.debug(f"Inserted {idx} tile into {table}")
             except pgError as e:
                 raise click.ClickException(e)
@@ -371,9 +372,8 @@ def index_cmd(ctx, extent, tilesize, drop, centroid):
             raise click.ClickException(
                 f"Could not GiST on feature geometry centroids."
                 f"Check the logs for details.")
-
-    finally:
-        conn.close()
+    except Exception as e:
+        raise click.ClickException(e)
 
 
 main.add_command(export_all_cmd)

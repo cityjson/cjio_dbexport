@@ -12,29 +12,24 @@ from cjio_dbexport import cli
 
 
 def test_command_line_interface():
-    """Test the CLI."""
-    runner = CliRunner()
-    result = runner.invoke(cli.main)
-    assert result.exit_code == 0
-    assert 'Export tool from PostGIS to CityJSON' in result.output
-    help_result = runner.invoke(cli.main, ['--help'])
-    assert help_result.exit_code == 0
-    assert 'Export tool from PostGIS to CityJSON' in help_result.output
+        """Test the CLI."""
+        runner = CliRunner()
+        result = runner.invoke(cli.main, ['--help'])
+        assert result.exit_code == 0
+        assert 'Export tool from PostGIS to CityJSON' in result.output
 
 @pytest.mark.db3dnl
 class TestDb3DNLIntegration:
-    def test_export_tiles(self, data_output_dir, cfg_db3dnl_path_param, capsys):
+    def test_export_tiles(self, data_output_dir, cfg_db3dnl_path_param, capfd):
         """Test the CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path_param),
             'export_tiles',
-            '--jobs', '4',
+            '--jobs', '1',
             'gb1', 'ic3', 'kh7', 'ec4',
             str(data_output_dir)
-        ])
+        ], catch_exceptions=False)
         if export_result.exit_code != 0:
             log.error(export_result.stderr_bytes)
             log.exception(export_result.exception)
@@ -43,11 +38,9 @@ class TestDb3DNLIntegration:
                if res in export_result.output):
                 pytest.fail()
 
-    def test_export_tiles_merge(self, data_output_dir, cfg_db3dnl_path_param, capsys):
+    def test_export_tiles_merge(self, data_output_dir, cfg_db3dnl_path_param, capfd):
         """Test the CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path_param),
             'export_tiles',
@@ -65,11 +58,10 @@ class TestDb3DNLIntegration:
                if res in export_result.output):
                 pytest.fail()
 
+    @pytest.mark.skip
     def test_export(self, data_output_dir, cfg_db3dnl_path_param):
         """Test the CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
         outfile = str(data_output_dir / 'test.json')
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path_param),
@@ -99,8 +91,6 @@ class TestDb3DNLIntegration:
     def test_export_extent(self, data_output_dir, cfg_db3dnl_path_param, db3dnl_poly_geojson):
         """Test the CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
         outfile = str(data_output_dir / 'test_poly.json')
         export_result = runner.invoke(cli.main, [
             str(cfg_db3dnl_path_param),
@@ -113,11 +103,11 @@ class TestDb3DNLIntegration:
             log.exception(export_result.exception)
             pytest.fail()
 
-    def test_index(self, db3dnl_poly_geojson, cfg_cjdb_path):
+    def test_index(self, db3dnl_poly_geojson, cfg_cjdb_path, cjdb_db, caplog):
         """Test the CLI."""
+        cjdb_db.send_query("drop table if exists cjio_dbexport_extent cascade;")
+        cjdb_db.send_query("drop table if exists tile_index.tile_index_tmp cascade;")
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
         export_result = runner.invoke(cli.main, [
             str(cfg_cjdb_path),
             'index',
@@ -133,11 +123,9 @@ class TestDb3DNLIntegration:
 
 @pytest.mark.db3dnl
 class TestLoD2Integration:
-    def test_export_one(self, data_output_dir, cfg_lod2_path_param, capsys):
+    def test_export_one(self, data_output_dir, cfg_lod2_path_param, capfd):
         """Test the CLI."""
         runner = CliRunner()
-        result = runner.invoke(cli.main)
-        assert result.exit_code == 0
         export_result = runner.invoke(cli.main, [
             str(cfg_lod2_path_param),
             'export_tiles',

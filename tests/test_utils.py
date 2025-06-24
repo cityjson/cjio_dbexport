@@ -80,8 +80,8 @@ class TestSorting:
         point = (252914.232, 608211.603)
         morton_key = utils.morton_code(*point)
         point_res = utils.rev_morton_code(morton_key)
-        assert pytest.approx(point[0], point_res[0]) and \
-               pytest.approx(point[1], point_res[1])
+        assert pytest.approx(point_res[0]) == point[0] and \
+               pytest.approx(point_res[1]) == point[1]
 
 class TestParsing:
     @pytest.mark.parametrize('lod_num, lod_str',[
@@ -106,8 +106,8 @@ class TestParsing:
 
 def test_zip_json(data_dir):
     """Write a zipped json with various compression"""
-    with (data_dir / "ic3.json").open("r") as fin:
+    with (data_dir / "ic3.city.json").open("r") as fin:
         data = fin.read()
     utils.write_zip(data=data.encode("utf-8"),
-                    filename="ic3.json",
+                    filename="ic3.city.json.zip",
                     outdir=Path("/tmp"))

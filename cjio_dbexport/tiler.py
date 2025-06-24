@@ -24,18 +24,18 @@ OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
 """
 import logging
-from typing import Mapping
-from psycopg2 import sql, errors
-from psycopg2 import Error as pgError
-from click import secho
 
-from cjio_dbexport import db
+import pgutils
+import psycopg.errors
+from psycopg import sql
+from psycopg.errors import Error as pgError
+from click import secho
 
 log = logging.getLogger(__name__)
 
 
-def create_temp_table(conn: db.Db, srid: int, extent: sql.Identifier) -> bool:
-    """Creates a temp table in Postgres for storing the tile index extent.
+def create_extent_table(conn: pgutils.PostgresConnection, srid: int, extent: sql.Identifier) -> bool:
+    """Creates a table in Postgres for storing the tile index extent.
     :returns: True on success
     """
     srid = str(srid)
@@ -43,25 +43,26 @@ def create_temp_table(conn: db.Db, srid: int, extent: sql.Identifier) -> bool:
         raise ValueError(f"SRID={srid} is not valid. Set it in the configuration "
                          f" file at tile_index.srid")
     query_params = {
-        'temp_name': extent,
-        'srid': sql.Literal(srid)
+        'extent_name': extent,
+        'srid': srid
     }
-    query = sql.SQL("""
-        CREATE TEMPORARY TABLE {temp_name}(
+    query_empty = sql.SQL("""
+        CREATE TABLE {extent_name} (
             gid serial PRIMARY KEY,  
             geom geometry(POLYGON, {srid})
         );
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
-def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
-    """Creates a temp table in Postgres for storing the tile index extent.
+def create_tx_table(conn: pgutils.PostgresConnection, tile_index, srid, drop=False) -> bool:
+    """Creates an extent table in Postgres for storing the tile index extent.
     :returns: True on success
     """
     srid = str(srid)
@@ -70,21 +71,22 @@ def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
                          f" file at tile_index.srid")
     query_schema = sql.SQL(
         "CREATE SCHEMA IF NOT EXISTS {};"
-    ).format(tile_index.schema.sqlid)
+    ).format(tile_index.schema.id)
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'srid': sql.Literal(srid),
-        'gid': tile_index.field.pk.sqlid,
-        'geom': tile_index.field.geometry.sqlid,
-        'geom_sw': tile_index.field.geometry_sw_boundary.sqlid
+        'srid': srid,
+        'gid': tile_index.field.pk.id,
+        'geom': tile_index.field.geometry.id,
+        'geom_sw': tile_index.field.geometry_sw_boundary.id
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
         CREATE TABLE {table}(
             {gid} text PRIMARY KEY,  
             {geom} geometry(POLYGON, {srid}),
             {geom_sw} geometry(LINESTRING, {srid})
         );
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     if drop:
         drop_query = sql.SQL(
             "DROP TABLE IF EXISTS {} CASCADE;"
@@ -97,42 +99,45 @@ def create_tx_table(conn: db.Db, tile_index, srid, drop=False) -> bool:
             conn.send_query(drop_query)
         log.debug(conn.print_query(query))
         conn.send_query(query)
+    except psycopg.errors.DuplicateTable as e:
+        log.error(e)
+        secho("It is not possible append the tile index to an existing "
+              "table. Use --drop if you want to DROP the existing table.",
+              fg='red')
+        return False
     except pgError as e:
-        if e.pgcode == '42P07':
-            log.error(f"{e.pgcode}\t{e.pgerror}")
-            secho("It is not possible append the tile index to an existing "
-                  "table. Use --drop if you want to DROP the existing table.",
-                  fg='red')
-        else:
-            log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
-def insert_ewkt(conn, temp_table: sql.Identifier, ewkt: str) -> bool:
+def insert_ewkt(conn, extent_table: sql.Identifier, ewkt: str) -> bool:
     """Insert an EKWT representation of a polygon into PostGIS.
     :returns: True on success
     """
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
         INSERT INTO {extent} (geom) VALUES (ST_GeomFromEWKT({ewkt}));"""
-    ).format(extent=temp_table, ewkt=sql.Literal(ewkt))
+    )
+    query = pgutils.inject_parameters(query_empty, params={
+        "extent": extent_table, "ewkt" : ewkt
+    })
     try:
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
 
-def clip_grid(conn: db.Db, tile_index: db.Schema, extent: sql.Identifier) -> bool:
+def clip_grid(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema, extent: sql.Identifier) -> bool:
     """Intersect the tile_index with the extent in PostGIS and drop the
     cells from tile_index that do not intersect."""
     query_params = {
         'table_idx': tile_index.schema + tile_index.table,
-        'id': tile_index.field.pk.sqlid,
-        'geometry': tile_index.field.geometry.sqlid,
+        'id': tile_index.field.pk.id,
+        'geometry': tile_index.field.geometry.id,
         'table_extent': extent
     }
-    query = sql.SQL("""
+    query_empty = sql.SQL("""
     DELETE
     FROM
         {table_idx} ti2
@@ -145,46 +150,49 @@ def clip_grid(conn: db.Db, tile_index: db.Schema, extent: sql.Identifier) -> boo
             {table_extent} n
         WHERE
             NOT st_intersects(ti2.{geometry}, n.geom));
-    """).format(**query_params)
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
 
 
-def gist_on_grid(conn: db.Db, tile_index: db.Schema) -> bool:
+def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema) -> bool:
     """Create a GiST index on the tile index polygons."""
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'geometry': tile_index.field.geometry.sqlid
+        'geometry': tile_index.field.geometry.id,
+        'name': pgutils.PostgresIdentifier(f"{tile_index.table}_geom_idx")
     }
-    query = sql.SQL("""
-    CREATE INDEX IF NOT EXISTS geom_idx ON
-    {table}
-        USING gist ({geometry});
-    """).format(**query_params)
+    query_empty = sql.SQL("""
+    CREATE INDEX IF NOT EXISTS {name} ON {table} USING gist ({geometry});
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     query_params = {
         'table': tile_index.schema + tile_index.table,
-        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary.sqlid
+        'geometry_sw_boundary': tile_index.field.geometry_sw_boundary,
+        'name': pgutils.PostgresIdentifier(f"{tile_index.table}_geom_sw_boundary_idx")
     }
-    query = sql.SQL("""
-    CREATE INDEX IF NOT EXISTS geom_sw_boundary_idx ON
+    query_empty = sql.SQL("""
+    CREATE INDEX IF NOT EXISTS {name} ON
     {table}
-        USING gist ({geometry_sw_boundary});
-    """).format(**query_params)
+    USING gist ({geometry_sw_boundary});
+    """)
+    query = pgutils.inject_parameters(query_empty, query_params)
     try:
         log.debug(conn.print_query(query))
         conn.send_query(query)
     except pgError as e:
-        log.error(f"{e.pgcode}\t{e.pgerror}")
+        log.error(e)
         return False
     return True
