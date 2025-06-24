@@ -6,7 +6,7 @@ on:
       - v*
 
 permissions:
-  contents: read
+  contents: write
 
 defaults:
   run:
@@ -87,4 +87,3 @@ jobs:
           draft: true
           prerelease: true
           fail_on_unmatched_files: true
-          token: ${{ secrets.GH_PAT }}
