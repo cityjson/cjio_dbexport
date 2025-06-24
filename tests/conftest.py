@@ -10,7 +10,7 @@ import pgutils
 import pytest
 import yaml
 
-from cjio_dbexport import configure, db, utils
+from cjio_dbexport import configure, utils
 
 
 #------------------------------------ add option for running the full test set

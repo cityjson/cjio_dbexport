@@ -31,8 +31,6 @@ from psycopg import sql
 from psycopg.errors import Error as pgError
 from click import secho
 
-from cjio_dbexport import db
-
 log = logging.getLogger(__name__)
 
 
@@ -130,7 +128,7 @@ def insert_ewkt(conn, extent_table: sql.Identifier, ewkt: str) -> bool:
     return True
 
 
-def clip_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema, extent: sql.Identifier) -> bool:
+def clip_grid(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema, extent: sql.Identifier) -> bool:
     """Intersect the tile_index with the extent in PostGIS and drop the
     cells from tile_index that do not intersect."""
     query_params = {
@@ -163,7 +161,7 @@ def clip_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema, extent: s
     return True
 
 
-def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: db.Schema) -> bool:
+def gist_on_grid(conn: pgutils.PostgresConnection, tile_index: pgutils.Schema) -> bool:
     """Create a GiST index on the tile index polygons."""
     query_params = {
         'table': tile_index.schema + tile_index.table,
